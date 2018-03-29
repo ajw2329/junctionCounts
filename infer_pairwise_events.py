@@ -61,7 +61,12 @@ def filter_standard_transcript_dict(full_transcript_dict, outdir, min_exon_lengt
 	filtered_transcript_log.close()
 
 def filter_event_dict(standard_event_dict, outdir, min_exon_length, min_intron_length, max_exon_length, max_intron_length):
+ 
+	''' input: standard event dict, constraints on exon, intron length
+		output: modifies standard event dict (deletes items that fail the filtration criteria)
 
+		Designed to deal with suspiciously short/long exons (e.g. 1 nt, 1000000 exons created by stringtie created in the former case by unclear circumstances, in the latter case by running stringtie on ribosome-depleted whole cell RNA-seq data)
+	'''
 	events_to_delete = []
 
 	for event in standard_event_dict:
@@ -111,322 +116,440 @@ def filter_event_dict(standard_event_dict, outdir, min_exon_length, min_intron_l
 	del events_to_delete
 
 
-def cassette_events(standard_transcript_dict, standard_junction_indexed_transcript_dict, standard_donor_acceptor_indexed_transcript_dict):
+def node_dir(standard_transcript_dict):
+	'''
+		returns node-indexed transcript dictionary (i.e. dictionary of transcripts indexed by individual exon boundaries)
+	'''
 
-	SE_counter = 0
-	MSE_counter = 0
+	node_index_tx = {}
+
+	def add_key(key, value):
+
+		if key not in node_index_tx:
+
+			node_index_tx[key] = [value]
+
+		else:
+
+			if value not in node_index_tx[key]:
+
+				node_index_tx[key].append(value)
+
+
+	for transcript in standard_transcript_dict:
+
+		chrom = standard_transcript_dict[transcript]["chrom"][:]
+		strand = standard_transcript_dict[transcript]["strand"][:]
+
+		for exon in standard_transcript_dict[transcript]["exons"]:
+
+			if strand == "+":
+
+				upstream = 0
+				downstream = 1
+
+			elif strand == "-":
+
+				upstream = 1
+				downstream = 0
+
+			add_key("_".join([chrom, str(exon[upstream]), strand, "upstream"]), transcript)
+			add_key("_".join([chrom, str(exon[downstream]), strand, "downstream"]), transcript)
+
+	return node_index_tx
+
+
+def compare_transcripts(tx1, tx2, tx1_exons, tx2_exons, strand, chrom):
+
+	events = {}
+
+	if len(tx1_exons) < len(tx2_exons):
+
+		temp_var = tx1
+		tx1 = tx2
+		tx2 = temp_var
+
+		temp_exons = copy.deepcopy(tx1_exons)
+		tx1_exons = copy.deepcopy(tx2_exons)
+		tx2_exons = copy.deepcopy(temp_exons)
+
+	else:
+
+		tx1_exons = copy.deepcopy(tx1_exons)
+		tx2_exons = copy.deepcopy(tx2_exons)
+
+	def convert_to_nodes(exons):
+
+		nodes = []
+		node_exon_dict = {}
+
+		for exon in exons:
+
+			node_exon_dict[str(exon[0]) + "_left"] = copy.deepcopy(exon)
+			node_exon_dict[str(exon[1]) + "_right"] = copy.deepcopy(exon)
+
+			nodes.append(str(exon[0]) + "_left")
+			nodes.append(str(exon[1]) + "_right")
+
+		nodes = ["universal_left"] + nodes + ["universal_right"]
+		node_exon_dict["universal_left"] = ["universal_left"]
+		node_exon_dict["universal_right"] = ["universal_right"]
+
+		return nodes, node_exon_dict
+
+	tx1_nodes, tx1_node_exon_dict = convert_to_nodes(tx1_exons)
+	tx2_nodes, tx2_node_exon_dict = convert_to_nodes(tx2_exons)
+
+	if len(tx1_nodes) > len(tx2_nodes):
+
+		tx2_nodes[len(tx2_nodes):len(tx1_nodes)] = (len(tx1_nodes) - len(tx2_nodes))*["filler"]
+
+	elif len(tx1_nodes) < len(tx2_nodes):
+
+		tx1_nodes[len(tx1_nodes):len(tx2_nodes)] = (len(tx2_nodes) - len(tx1_nodes))*["filler"]	
+
+	tx1_index = 0
+	tx2_index = 0
+
+	def scan_for_events(tx1_index, tx2_index):
+
+		pre_common = []
+		post_common = []
+		tx1_unique = []
+		tx2_unique = []
+
+		tx2_adjustment = tx1_index - tx2_index
+
+		for i in range(tx1_index, len(tx1_nodes)):
+
+			if i - tx2_adjustment >= len(tx2_nodes):
+
+				return
+
+			if tx2_nodes[i - tx2_adjustment] == tx1_nodes[i] and len(tx1_unique) == 0 and len(tx2_unique) == 0:
+
+				pre_common.append(tx1_nodes[i])
+
+			else:
+
+				if tx1_nodes[i] in tx2_nodes:
+
+
+					post_common.append(tx1_nodes[i])
+
+					tx2_unique += tx2_nodes[tx2_nodes.index(pre_common[-1]) + 1: tx2_nodes.index(tx1_nodes[i])]
+
+					pre_common = [pre_common[-1]]
+					post_common = [post_common[0]]
+
+
+					form_1_nodes = pre_common + tx1_unique + post_common
+					form_2_nodes = pre_common + tx2_unique + post_common
+
+					form_1_exons = []
+					form_2_exons = []
+
+					for node in form_1_nodes:
+
+						if tx1_node_exon_dict[node] not in form_1_exons:
+
+							form_1_exons.append(tx1_node_exon_dict[node])
+
+					for node in form_2_nodes:
+
+						if tx2_node_exon_dict[node] not in form_2_exons:
+
+							form_2_exons.append(tx2_node_exon_dict[node])
+
+
+					#classify event type as well as included/excluded form
+					classified = classify_event(pre_common, post_common, tx1_unique, tx2_unique, form_1_exons, form_2_exons, strand, tx1, tx2)
+
+					key_string = chrom + ":" + strand + ":" + pre_common[-1] + "|" + "&".join(classified["included_unique"]) + "|" + "&".join(classified["excluded_unique"]) + "|" + post_common[0]
+
+
+					events[key_string] = {"included_exons": copy.deepcopy(classified["included_exons"]), "excluded_exons": copy.deepcopy(classified["excluded_exons"]), "event_type": copy.deepcopy(classified["event_type"]), "included_form_transcripts": [copy.deepcopy(classified["included_form_transcript"])], "excluded_form_transcripts": [copy.deepcopy(classified["excluded_form_transcript"])], "strand": strand, "chrom": chrom, "included_count": 0, "excluded_count": 0, "sources": [], "pre_common": copy.deepcopy(pre_common), "post_common": copy.deepcopy(post_common)}
+
+					if tx1_nodes.index(post_common[-1]) < len(tx1_nodes) and tx2_nodes.index(post_common[-1]) < len(tx2_nodes):
+						scan_for_events(tx1_nodes.index(post_common[-1]), tx2_nodes.index(post_common[-1]))
+
+
+					break
+
+				else:
+
+					tx1_unique.append(tx1_nodes[i])
+
+	scan_for_events(tx1_index, tx2_index)
+
+
+	return events
+
+
+def call_compare_transcripts(node_index_tx, standard_transcript_dict):
 
 	standard_event_dict = {}
+	compared_transcripts = {}
 
-	for junction in standard_junction_indexed_transcript_dict:
+	for node in node_index_tx:
 
-		putative_excluded_form_transcripts = standard_junction_indexed_transcript_dict[junction]
+		for i, transcript in enumerate(node_index_tx[node]):
 
-		chrom = junction.split("_")[0]
-		strand = junction.split("_")[3]
-		left_junction = junction.split("_")[1]
-		right_junction = junction.split("_")[2]
+			if i < len(node_index_tx[node]) - 1:
 
-		left_junction_key = chrom + "_" + left_junction + "_" + strand
-		right_junction_key = chrom + "_" + right_junction + "_" + strand
+				for j in range(i+1, len(node_index_tx[node])):
 
-		if left_junction_key in standard_donor_acceptor_indexed_transcript_dict:
+					other_transcript = node_index_tx[node][j][:]
 
-			left_junction_transcript_set = set(standard_donor_acceptor_indexed_transcript_dict[left_junction_key])
+					transcript_pair = [transcript, other_transcript]
+					transcript_pair.sort()
 
-		if right_junction_key in standard_donor_acceptor_indexed_transcript_dict:
+					if "_".join(transcript_pair) not in compared_transcripts:
 
-			right_junction_transcript_set = set(standard_donor_acceptor_indexed_transcript_dict[right_junction_key])
+						comparison_event_dict = compare_transcripts(transcript, other_transcript, standard_transcript_dict[transcript]["exons"], standard_transcript_dict[other_transcript]["exons"], standard_transcript_dict[transcript]["strand"], standard_transcript_dict[transcript]["chrom"])
 
-		putative_included_form_transcripts = list((left_junction_transcript_set & right_junction_transcript_set) - set(putative_excluded_form_transcripts))
+						compared_transcripts["_".join(transcript_pair)] = "NA"
 
-		left_flanking_exons = [] ##Could be multiple alternative distal coordinates - must pick the shortest
-		right_flanking_exons = []
+						for key in comparison_event_dict:
 
-		####Add all possible excluded form flanking exons to list
-		for transcript in putative_excluded_form_transcripts:
+							if key not in standard_event_dict:
 
-			for exon in standard_transcript_dict[transcript]["exons"]:
+								standard_event_dict[key] = copy.deepcopy(comparison_event_dict[key])
 
-				if int(left_junction) == int(exon[1]):
+							else:
 
-					if exon not in left_flanking_exons:
+								###Combine transcript lists
+								###Shorten outer exons if possible
 
-						left_flanking_exons.append(exon)
+								if "universal_left" in comparison_event_dict[key]["pre_common"]:
 
-				elif int(right_junction) == int(exon[0]):
+									min_right = min(comparison_event_dict[key]["included_exons"][-1][-1], comparison_event_dict[key]["excluded_exons"][-1][-1], standard_event_dict[key]["included_exons"][-1][-1], standard_event_dict[key]["excluded_exons"][-1][-1])
+									standard_event_dict[key]["included_exons"][-1][-1] = min_right
+									standard_event_dict[key]["excluded_exons"][-1][-1] = min_right
 
-					if exon not in right_flanking_exons:
-					
-						right_flanking_exons.append(exon)
+								elif "universal_right" in comparison_event_dict[key]["post_common"]:
 
-		if len(putative_included_form_transcripts) > 0:
+									max_left = max(comparison_event_dict[key]["included_exons"][0][0], comparison_event_dict[key]["excluded_exons"][0][0], standard_event_dict[key]["included_exons"][0][0], standard_event_dict[key]["excluded_exons"][0][0])
+									standard_event_dict[key]["included_exons"][0][0] = max_left
+									standard_event_dict[key]["excluded_exons"][0][0] = max_left
 
-			#print "Putative SE or MSE event found!"
-			#print "Extracting the cassette exons . . . "
+								else:
 
-			cassette_exon_sets = [] #Each set corresponds to a different event - allows for MSE to overlap with SE etc
+									max_left = max(comparison_event_dict[key]["included_exons"][0][0], comparison_event_dict[key]["excluded_exons"][0][0], standard_event_dict[key]["included_exons"][0][0], standard_event_dict[key]["excluded_exons"][0][0])
+									standard_event_dict[key]["included_exons"][0][0] = max_left
+									standard_event_dict[key]["excluded_exons"][0][0] = max_left
 
-			cassette_set_transcript_dict = {}
+									min_right = min(comparison_event_dict[key]["included_exons"][-1][-1], comparison_event_dict[key]["excluded_exons"][-1][-1], standard_event_dict[key]["included_exons"][-1][-1], standard_event_dict[key]["excluded_exons"][-1][-1])
+									standard_event_dict[key]["included_exons"][-1][-1] = min_right
+									standard_event_dict[key]["excluded_exons"][-1][-1] = min_right
 
+								standard_event_dict[key]["included_form_transcripts"] = list(set(standard_event_dict[key]["included_form_transcripts"] + comparison_event_dict[key]["included_form_transcripts"]))
 
-			####Pull out all possible flanking exons, all possible (sets of) cassette exons
-			for transcript in putative_included_form_transcripts:
-
-				cassette_exons = []
-				i_should_collect_cassette = False
-
-				for exon in standard_transcript_dict[transcript]["exons"]:
-
-					if int(exon[1]) == int(left_junction):
-
-						if exon not in left_flanking_exons:
-							left_flanking_exons.append(exon)
-
-						i_should_collect_cassette = True 
-
-						continue
-
-					elif i_should_collect_cassette and int(exon[0]) != int(right_junction):
-
-						cassette_exons.append(exon)
-
-					elif i_should_collect_cassette and int(exon[0]) == int(right_junction):
-
-						if exon not in right_flanking_exons:
-							right_flanking_exons.append(exon)
-
-						if cassette_exons not in cassette_exon_sets:
-							cassette_exon_sets.append(cassette_exons)
-
-						cassette_exons_key = "_".join(["_".join(map(str, i)) for i in cassette_exons])
-
-						if cassette_exons_key not in cassette_set_transcript_dict:
-
-							cassette_set_transcript_dict[cassette_exons_key] = []
-
-						if transcript not in cassette_set_transcript_dict[cassette_exons_key]:
-							cassette_set_transcript_dict[cassette_exons_key].append(transcript)
-
-						break
-
-				if len(left_flanking_exons) == 0 or len(right_flanking_exons) == 0 or len(cassette_exon_sets) == 0:
-
-					#print "False positive - possible instance of donor + acceptor with same coordinates"
-					continue
-
-
-			#####Identify minimal flanking exons
-
-			left_flanking_exon_lengths = []
-
-			for exon in left_flanking_exons:
-
-				left_flanking_exon_lengths.append(splice_lib.calc_length_exon_list([exon]))
-
-			final_left_flanking_exon = left_flanking_exons[left_flanking_exon_lengths.index(min(left_flanking_exon_lengths))]
-
-			right_flanking_exon_lengths = []
-
-			for exon in right_flanking_exons:
-
-				right_flanking_exon_lengths.append(splice_lib.calc_length_exon_list([exon]))
-
-			final_right_flanking_exon = right_flanking_exons[right_flanking_exon_lengths.index(min(right_flanking_exon_lengths))]
-
-
-			#print "There are (is?)", str(len(cassette_exon_sets)), "included forms associated with this excluded form"
-			for cassette_set in cassette_exon_sets:
-
-				if len(cassette_set) == 1:
-
-					event_type = "SE"
-					SE_counter += 1
-					event_id = "SE." + str(SE_counter)
-
-				elif len(cassette_set) > 1:
-
-					event_type = "MSE"
-					MSE_counter += 1
-					event_id = "MSE." + str(MSE_counter)
-
-				else:
-
-					sys.exit("Cassette exon set of length 0 found in cassette_events")
-
-				included_exons = [final_left_flanking_exon] + cassette_set + [final_right_flanking_exon]
-				excluded_exons = [final_left_flanking_exon] + [final_right_flanking_exon]
-
-				cassette_set_key = "_".join(["_".join(map(str, i)) for i in cassette_set])
-				included_form_transcripts = cassette_set_transcript_dict[cassette_set_key]
-
-				if event_id not in standard_event_dict:
-
-					standard_event_dict[event_id] = {
-							"event_type": event_type,
-							"included_exons": copy.deepcopy(included_exons),
-							"excluded_exons": copy.deepcopy(excluded_exons),
-							"chrom": chrom,
-							"strand": strand,
-							"included_count": 0,
-							"excluded_count": 0,
-							"included_form_transcripts": copy.deepcopy(included_form_transcripts),
-							"excluded_form_transcripts": copy.deepcopy(putative_excluded_form_transcripts)
-						}
-				else:
-					sys.exit("Event id already found in dict - problem with naming strategy in cassette_events")
+								standard_event_dict[key]["excluded_form_transcripts"] = list(set(standard_event_dict[key]["excluded_form_transcripts"] + comparison_event_dict[key]["excluded_form_transcripts"]))
 
 
 	return standard_event_dict
 
 
 
+def classify_event(pre_common, post_common, tx1_unique, tx2_unique, form_1_exons, form_2_exons, strand, tx1, tx2):
 
-def alt_events(exon_pair_dict, standard_event_dict):
+	event_type = "WHOOPS"
 
-	A3_counter = 0
-	A5_counter = 0
+	if "universal_left" in pre_common:
 
-	for junction_that_is_missing in exon_pair_dict: ##Inner left missing or inner right missing
+		form_1_exons = copy.deepcopy(form_1_exons)[1:]
+		form_2_exons = copy.deepcopy(form_2_exons)[1:]
 
-		which_junction = junction_that_is_missing.split("_")[1] ##right or left - combined with strand this identifies event as A3 or A5
+		min_right = min(form_1_exons[-1][-1], form_2_exons[-1][-1])
 
-		for key in exon_pair_dict[junction_that_is_missing]: 
+		form_1_exons[-1][-1] = min_right
+		form_2_exons[-1][-1] = min_right
 
-			chrom = key.split("_")[0]
-			strand = key.split("_")[4]
+	elif "universal_right" in post_common:
 
-			forms_dict = {}  ###collect all unique forms
+		form_1_exons = copy.deepcopy(form_1_exons)[0:-1]
+		form_2_exons = copy.deepcopy(form_2_exons)[0:-1]
+		max_left = max(form_1_exons[0][0], form_2_exons[0][0])
 
-			for index,pair in enumerate(exon_pair_dict[junction_that_is_missing][key]["exon_pairs"]):
+		form_1_exons[0][0] = max_left
+		form_2_exons[0][0] = max_left
 
-				if len(pair) > 2:
+	else:
 
-					sys.exit("Failure in generating exon pair dict - pair length > 2 found.")
+		if form_1_exons[0][0] != form_2_exons[0][0]:
 
-				full_pair_key = chrom + "_" + "_".join(map(str, pair[0])) + "_" + "_".join(map(str, pair[1])) + "_" + strand
+			max_left = max(form_1_exons[0][0], form_2_exons[0][0])
 
-				transcript = exon_pair_dict[junction_that_is_missing][key]["transcripts"][index][:]
+			form_1_exons[0][0] = max_left
+			form_2_exons[0][0] = max_left
 
-				if full_pair_key not in forms_dict:
+		if form_1_exons[-1][-1] != form_2_exons[-1][-1]:
 
-					forms_dict[full_pair_key] = []
+			min_right = min(form_1_exons[-1][-1], form_2_exons[-1][-1])
 
-				if transcript not in forms_dict[full_pair_key]:
+			form_1_exons[-1][-1] = min_right
+			form_2_exons[-1][-1] = min_right
 
-					forms_dict[full_pair_key].append(transcript)
+
+	if "universal_left" not in pre_common:
+
+		if "universal_right" not in post_common:
+
+			if not (len(form_1_exons) == len(form_2_exons) and len(form_1_exons) == 3 and len(tx1_unique) == 2 and len(tx2_unique) == 2):
+
+				if splice_lib.calc_length_exon_list(form_1_exons) > splice_lib.calc_length_exon_list(form_2_exons):
+
+					included_exons = form_1_exons; excluded_exons = form_2_exons; included_unique = tx1_unique; excluded_unique = tx2_unique; included_form_transcript = tx1; excluded_form_transcript = tx2
+
+				elif splice_lib.calc_length_exon_list(form_1_exons) < splice_lib.calc_length_exon_list(form_2_exons):
+
+					included_exons = form_2_exons; excluded_exons = form_1_exons; included_unique = tx2_unique; excluded_unique = tx1_unique; included_form_transcript = tx2; excluded_form_transcript = tx1
+
+				elif len(form_1_exons) > len(form_2_exons):
+
+					included_exons = form_1_exons; excluded_exons = form_2_exons; included_unique = tx1_unique; excluded_unique = tx2_unique; included_form_transcript = tx1; excluded_form_transcript = tx2
+
+				elif len(form_1_exons) < len(form_2_exons):
+
+					included_exons = form_2_exons; excluded_exons = form_1_exons; included_unique = tx2_unique; excluded_unique = tx1_unique; included_form_transcript = tx2; excluded_form_transcript = tx1
+
+				else: ##In this case, wherein both the lengths and exon counts of both forms are equal, I arbitrarily assign included form to form 1
+
+					included_exons = form_1_exons; excluded_exons = form_2_exons; included_unique = tx1_unique; excluded_unique = tx2_unique; included_form_transcript = tx1; excluded_form_transcript = tx2
+
+				if len(included_exons) == 3 and len(excluded_exons) == 2 and len(included_unique) == 2 and len(excluded_unique) == 0:
+
+					event_type = "SE"
+
+				elif len(included_exons) > 3 and len(excluded_exons) == 2 and len(included_unique) > 2 and (len(included_unique) % 2) == 0 and len(excluded_unique) == 0:
+
+					event_type = "MS"
+
+				elif len(included_exons) == 2 and len(excluded_exons) == 2 and len(included_unique) == 1 and len(excluded_unique) == 1:
+
+					if int(included_unique[0].split("_")[0]) == included_exons[0][1]:
+						if strand == "+":
+							event_type = "A5"
+						elif strand == "-":
+							event_type = "A3"
+					elif int(included_unique[0].split("_")[0]) == included_exons[1][0]:
+						if strand == "+":
+							event_type = "A3"
+						elif strand == "-":
+							event_type = "A5"
+
+				elif len(included_exons) == 1 and len(excluded_exons) == 2:
+
+					event_type = "RI"
+
+				else:
+					event_type = "CO" ## for complex
 
 			else:
+				event_type = "MX"
 
-				###Inner loop complete - all forms collected.  Infer events.
-
-				if strand == "+" and which_junction == "left":
-
-					event_type = "A5"
-
-				elif strand == "+":
-
-					event_type = "A3"
-
-				elif strand == "-" and which_junction == "left":
-
-					event_type = "A3"
+				if strand == "+":
+					if int(tx1_unique[0].split("_")[0]) < int(tx2_unique[0].split("_")[0]):
+						included_exons = form_1_exons; excluded_exons = form_2_exons; included_unique = tx1_unique; excluded_unique = tx2_unique; included_form_transcript = tx1; excluded_form_transcript = tx2
+					else:
+						included_exons = form_2_exons; excluded_exons = form_1_exons; included_unique = tx2_unique; excluded_unique = tx1_unique; included_form_transcript = tx2; excluded_form_transcript = tx1
 
 				elif strand == "-":
+					if int(tx1_unique[-1].split("_")[0]) > int(tx2_unique[-1].split("_")[0]):
+						included_exons = form_1_exons; excluded_exons = form_2_exons; included_unique = tx1_unique; excluded_unique = tx2_unique; included_form_transcript = tx1; excluded_form_transcript = tx2
+					else:
+						included_exons = form_2_exons; excluded_exons = form_1_exons; included_unique = tx2_unique; excluded_unique = tx1_unique; included_form_transcript = tx2; excluded_form_transcript = tx1
 
-					event_type = "A5"
+		else:
 
-				else:
+			if form_1_exons[-1][-1] > form_2_exons[-1][-1]:
+				included_exons = form_1_exons; excluded_exons = form_2_exons; included_unique = tx1_unique; excluded_unique = tx2_unique; included_form_transcript = tx1; excluded_form_transcript = tx2
+			else:
+				included_exons = form_2_exons; excluded_exons = form_1_exons; included_unique = tx2_unique; excluded_unique = tx1_unique; included_form_transcript = tx2; excluded_form_transcript = tx1
 
-					sys.exit("Error in alt_events - event type could not be classified. Exiting . . . ")
+			if len(included_exons) == 2 and len(excluded_exons) == 2 and len(included_unique) == 2 and len(excluded_unique) == 2:
+				if strand == "+":
+					event_type = "AL"
+				elif strand == "-":
+					event_type = "AF"
 
-				forms_dict_keys = copy.deepcopy(forms_dict.keys())
+			elif (len(included_exons) > 2 and len(excluded_exons) >= 2 and len(included_unique) > 2 and len(excluded_unique) >= 2) or (len(included_exons) >= 2 and len(excluded_exons) > 2 and len(included_unique) >= 2 and len(excluded_unique) > 2):
+				if strand == "+":
+					event_type = "ML"
+				elif strand == "-":
+					event_type = "MF"
 
-				forms_pair_dict = {}
+			elif len(included_exons) >= 2 and len(included_unique) >= 2 and len(excluded_exons) == 1 and len(excluded_unique) == 0:
+				if strand == "+":
+					event_type = "UL"
+				elif strand == "-":
+					event_type = "UF"
 
+			elif len(included_exons) == 1 and len(excluded_exons) == 1 and len(included_unique) == 1 and len(excluded_unique) == 1:
+				if strand == "+":
+					event_type = "AP"
+				elif strand == "-":
+					event_type = "AT"
 
-				for index, forms_key in enumerate(forms_dict_keys):
+			else:
+				if strand == "+":
+					event_type = "CL"
+				elif strand == "-":
+					event_type = "CF"
 
-					if index < (len(forms_dict_keys) - 1):
+	else:
 
-						for sub_index in range(index + 1, len(forms_dict_keys)):
+		if form_1_exons[0][0] < form_2_exons[0][0]:
+			included_exons = form_1_exons; excluded_exons = form_2_exons; included_unique = tx1_unique; excluded_unique = tx2_unique; included_form_transcript = tx1; excluded_form_transcript = tx2
+		else:
+			included_exons = form_2_exons; excluded_exons = form_1_exons; included_unique = tx2_unique; excluded_unique = tx1_unique; included_form_transcript = tx2; excluded_form_transcript = tx1
 
-							forms_pair_key = forms_key + "_" + forms_dict_keys[sub_index]
+		if len(included_exons) == 2 and len(excluded_exons) == 2 and len(included_unique) == 2 and len(excluded_unique) == 2:
+			if strand == "+":
+				event_type = "AF"
+			elif strand == "-":
+				event_type = "AL"
 
-							if forms_pair_key not in forms_pair_dict:
+		elif (len(included_exons) > 2 and len(excluded_exons) >= 2 and len(included_unique) > 2 and len(excluded_unique) >= 2) or (len(included_exons) >= 2 and len(excluded_exons) > 2 and len(included_unique) >= 2 and len(excluded_unique) > 2):
+			if strand == "+":
+				event_type = "MF"
+			elif strand == "-":
+				event_type = "ML"
 
-								forms_pair_dict[forms_pair_key] = {forms_key[:]: copy.deepcopy(forms_dict[forms_key]), forms_dict_keys[sub_index][:]: copy.deepcopy(forms_dict[forms_dict_keys[sub_index]])}
+		elif len(included_exons) >= 2 and len(included_unique) >= 2 and len(excluded_exons) == 1 and len(excluded_unique) == 0:
+			if strand == "+":
+				event_type = "UF"
+			elif strand == "-":
+				event_type = "UL"
 
-				else:
+		elif len(included_exons) == 1 and len(excluded_exons) == 1 and len(included_unique) == 1 and len(excluded_unique) == 1:
+			if strand == "+":
+				event_type = "AT"
+			elif strand == "-":
+				event_type = "AP"
 
-					###Identify included form, excluded form
+		else:
+			if strand == "+":
+				event_type = "CF"
+			elif strand == "-":
+				event_type = "CL"
 
-					for event in forms_pair_dict:
-
-						if len(forms_pair_dict[event]) != 2:
-
-							sys.exit("Incorrect event size in form_pair_dict (alt_events). Exiting . . . ")
-
-
-						event_form_keys = copy.deepcopy(forms_pair_dict[event].keys())
-
-						if (int(event_form_keys[0].split("_")[3]) - int(event_form_keys[0].split("_")[2])) < (int(event_form_keys[1].split("_")[3]) - int(event_form_keys[1].split("_")[2])):
-
-							included_form_index = 0
-							excluded_form_index = 1
-
-						elif (int(event_form_keys[0].split("_")[3]) - int(event_form_keys[0].split("_")[2])) > (int(event_form_keys[1].split("_")[3]) - int(event_form_keys[1].split("_")[2])):
-
-							included_form_index = 1
-							excluded_form_index = 0
-
-						else:
-
-							print event_form_keys
-							print forms_pair_dict
-							print event
-
-							sys.exit("Included form seems to be same length as excluded form in alt_events. Exiting . . . ")
-
-						if event_type == "A3":
-
-							A3_counter += 1
-							event_id = "A3." + str(A3_counter)
-
-						elif event_type == "A5":
-
-							A5_counter += 1
-							event_id = "A5." + str(A5_counter)
-
-						included_exons = [[int(event_form_keys[included_form_index].split("_")[1]), int(event_form_keys[included_form_index].split("_")[2])], [int(event_form_keys[included_form_index].split("_")[3]), int(event_form_keys[included_form_index].split("_")[4])]]
-
-						included_form_transcripts = copy.deepcopy(forms_pair_dict[event][event_form_keys[included_form_index]])
-
-
-						excluded_exons = [[int(event_form_keys[excluded_form_index].split("_")[1]), int(event_form_keys[excluded_form_index].split("_")[2])], [int(event_form_keys[excluded_form_index].split("_")[3]), int(event_form_keys[excluded_form_index].split("_")[4])]]
-
-						excluded_form_transcripts = copy.deepcopy(forms_pair_dict[event][event_form_keys[excluded_form_index]])
+	if event_type == "WHOOPS":
+		 print {"included_exons": included_exons, "excluded_exons": excluded_exons, "event_type": event_type, "included_form_transcript": included_form_transcript, "excluded_form_transcript": excluded_form_transcript, "included_unique": included_unique, "excluded_unique": excluded_unique}
 
 
-						if event_id not in standard_event_dict:
-
-							standard_event_dict[event_id] = {
-									"event_type": event_type,
-									"included_exons": copy.deepcopy(included_exons),
-									"excluded_exons": copy.deepcopy(excluded_exons),
-									"chrom": chrom[:],
-									"strand": strand[:],
-									"included_count": 0,
-									"excluded_count": 0,
-									"included_form_transcripts": copy.deepcopy(included_form_transcripts),
-									"excluded_form_transcripts": copy.deepcopy(excluded_form_transcripts)
-								}
-						else:
-							sys.exit("Event id already found in dict - problem with naming strategy in alt_events")
+	return {"included_exons": included_exons, "excluded_exons": excluded_exons, "event_type": event_type, "included_form_transcript": included_form_transcript, "excluded_form_transcript": excluded_form_transcript, "included_unique": included_unique, "excluded_unique": excluded_unique}
 
 
 
 def write_intron_bedfile(standard_junction_indexed_transcript_dict, outdir):
+	'''
+		input: junction-indexed transcript dict (dict that has all junctions (which allows definition of introns); values are transcripts to which they belong)
+		output: writes a bed file containing intron coordinates to the output directory
+
+		Used for running bedtools intersect to define retained intron events.  An intron that completely overlaps an exon satisfies the definition.
+	'''
 
 	intron_bedfile = open(outdir + "/RI_introns.bed", 'w')
 	intron_bedfile.truncate()
@@ -451,8 +574,16 @@ def write_intron_bedfile(standard_junction_indexed_transcript_dict, outdir):
 
 			print "Warning: Intron between", junction, "is either too short, or does not have a positive, nonzero length. Skipping . . . "
 
+	intron_bedfile.close()
+
 
 def write_exon_bedfile(standard_transcript_dict, outdir):
+	'''
+		input: standard transcript dict, output directory.
+		output: bedfile of all transcript exon coordinates along with transcripts to which they belong
+		
+		Used to create input for bedtools intersect, which in turn allows definition of 
+	'''
 
 	exon_bedfile = open(outdir + "/transcript_exon_bedfile.bed", 'w')
 	exon_bedfile.truncate()
@@ -473,9 +604,13 @@ def write_exon_bedfile(standard_transcript_dict, outdir):
 
 
 
-def call_bedtools_intersect(outdir):
+def call_bedtools_intersect(outdir, bedtools_path):
+	'''
+		input: output directory and path to bedtools executable (in arguments, default is set to "bedtools" if path is not specified)
+		output: bedtools intersect generates a bed file containing all introns completely overlapping an exon (along with both sets of respective coordinates).  This file is used later to define RI events.
+	'''
 
-	bedtools_command = "bedtools intersect -a " + outdir + "/RI_introns.bed -b " + outdir + "/transcript_exon_bedfile.bed -wa -wb -s -f 1.00 > " + outdir + "/RI_introns_exon_overlaps.bed"
+	bedtools_command = bedtools_path + " intersect -a " + outdir + "/RI_introns.bed -b " + outdir + "/transcript_exon_bedfile.bed -wa -wb -s -f 1.00 > " + outdir + "/RI_introns_exon_overlaps.bed"
 
 
 	try:
@@ -488,6 +623,10 @@ def call_bedtools_intersect(outdir):
 
 
 def retained_intron_events(outdir, standard_transcript_dict, standard_event_dict):
+	'''
+		input: output directory, standard transcript dict, standard event dict
+		output: Modifies standard event dict to include new RI events defined by bedtools intersect of introns and exons
+	'''
 
 	event_type = "RI"
 
@@ -540,12 +679,8 @@ def retained_intron_events(outdir, standard_transcript_dict, standard_event_dict
 
 							putative_ri_events[event_id]["right_exons"].append(copy.deepcopy(exon))
 
-	RI_counter = 0
-
 	for event_id in putative_ri_events:
 
-		RI_counter += 1
-		new_id = "RI." + str(RI_counter)
 
 		chrom = putative_ri_events[event_id]["chrom"]
 		strand = putative_ri_events[event_id]["strand"]
@@ -576,9 +711,13 @@ def retained_intron_events(outdir, standard_transcript_dict, standard_event_dict
 
 		included_exons = [[final_left_coord, final_right_coord]]
 
-		if new_id not in standard_event_dict:
 
-			standard_event_dict[new_id] = {
+		key = chrom + ":" + strand + ":" + str(included_exons[0][0]) + "_left" + "|" + "&".join([]) + "|" + "&".join([str(excluded_exons[0][1]) + "_right", str(excluded_exons[1][0]) + "_left"]) + "|" + str(included_exons[-1][-1]) + "_right"
+
+
+		if key not in standard_event_dict:
+
+			standard_event_dict[key] = {
 					"event_type": event_type,
 					"included_exons": copy.deepcopy(included_exons),
 					"excluded_exons": copy.deepcopy(excluded_exons),
@@ -590,476 +729,52 @@ def retained_intron_events(outdir, standard_transcript_dict, standard_event_dict
 					"excluded_form_transcripts": copy.deepcopy(excluded_form_transcripts)
 				}
 
+		else:
 
+			max_left = max(included_exons[0][0], excluded_exons[0][0], standard_event_dict[key]["included_exons"][0][0], standard_event_dict[key]["excluded_exons"][0][0])
+			standard_event_dict[key]["included_exons"][0][0] = max_left
+			standard_event_dict[key]["excluded_exons"][0][0] = max_left
 
-def af_al_events(standard_event_dict, first_donor_acceptor_left_dict, first_donor_acceptor_right_dict, standard_transcript_dict, standard_donor_acceptor_indexed_transcript_dict, standard_junction_indexed_transcript_dict):
+			min_right = min(included_exons[-1][-1], excluded_exons[-1][-1], standard_event_dict[key]["included_exons"][-1][-1], standard_event_dict[key]["excluded_exons"][-1][-1])
+			standard_event_dict[key]["included_exons"][-1][-1] = min_right
+			standard_event_dict[key]["excluded_exons"][-1][-1] = min_right
 
-	AF_counter = 0
-	AL_counter = 0
+		standard_event_dict[key]["included_form_transcripts"] = list(set(standard_event_dict[key]["included_form_transcripts"] + included_form_transcripts))
 
-	directions = ["left", "right"]
+		standard_event_dict[key]["excluded_form_transcripts"] = list(set(standard_event_dict[key]["excluded_form_transcripts"] + excluded_form_transcripts))
 
-	for direction in directions:
 
-		for half_junction in eval("first_donor_acceptor_" + direction + "_dict"):
+def separate_jc_friendly_events(standard_event_dict):
+	'''
+		input: standard event dict
+		output: two dictionaries, "friendly" and "unfriendly" containing respectively events that can be quantified by junctioncounts in its current form and events that cannot
 
-			putative_forms = {}
+		junctioncounts relies exclusively on junction reads, with the one exception of RI in which bedtools intersect is used directly on the reads in order to quantify reads overlapping exon-intron junctions. Consequently, AT and AP events (for example) cannot be quantified (yet).
+	'''
 
-			chrom = half_junction.split("_")[0]
-			strand = half_junction.split("_")[-1]
+	friendly = {}
+	unfriendly = {}
 
-			if strand == "+" and direction == "left":
+	for event in standard_event_dict:
 
-				event_type = "AF"
-				case = 1
+		if len(standard_event_dict[event]["included_junctions"]) == 0 or len(standard_event_dict[event]["excluded_junctions"]) == 0:
 
-			elif strand == "+":
+			unfriendly[event] = copy.deepcopy(standard_event_dict[event])
 
-				event_type = "AL"
-				case = 2
+		else:
 
-			elif strand == "-" and direction == "left":
+			friendly[event] = copy.deepcopy(standard_event_dict[event])
 
-				event_type = "AL"
-				case = 3
+	return friendly, unfriendly
 
-			elif strand == "-":
 
-				event_type = "AF"
-				case = 4
+def output_ioe(outdir, standard_event_dict, standard_transcript_dict, name = "splice_lib_events"):
+	'''
+		input: output directory, standard event dict, standard transcript dict, name for output file (not including extension)
+		output: IOE files as defined by SUPPA
+	'''
 
-			else:
-
-				sys.exit("Non-standard strand type in af_al_events.  Exiting . . . ")
-
-			#####Extract all forms/transcripts where the junction is the first inner half junction
-
-			for transcript in eval("first_donor_acceptor_" + direction + "_dict")[half_junction]:
-
-				if direction == "left":
-
-					first_junction_index = 0
-					first_exon_index = 0
-					second_exon_index = 1
-
-				elif direction == "right":
-
-					first_junction_index = -1
-					first_exon_index = -2
-					second_exon_index = -1
-
-				first_junction = standard_transcript_dict[transcript]["junctions"][first_junction_index]
-
-
-				exon_pair = copy.deepcopy([standard_transcript_dict[transcript]["exons"][first_exon_index], standard_transcript_dict[transcript]["exons"][second_exon_index]])
-
-				junction_key = chrom + "_" + "_".join(map(str, first_junction)) + "_" + strand
-
-				if junction_key not in putative_forms:
-
-					putative_forms[junction_key] = {"transcripts": [], "exon_pairs": []}
-
-				if transcript not in putative_forms[junction_key]["transcripts"]:
-
-					putative_forms[junction_key]["transcripts"].append(transcript)
-
-				if exon_pair not in putative_forms[junction_key]["exon_pairs"]:
-
-					putative_forms[junction_key]["exon_pairs"].append(exon_pair)
-
-			#####Extract all forms where the junction need not be the first inner half junction. This allows for scenarios where multiple leading exons can be absent in one of the forms
-
-			if half_junction in standard_donor_acceptor_indexed_transcript_dict:
-
-				for transcript in standard_donor_acceptor_indexed_transcript_dict[half_junction]:
-
-					if (direction == "left" and (standard_transcript_dict[transcript]["flat_junctions"].index(int(half_junction.split("_")[1])) % 2) != 0) or (direction == "right" and (standard_transcript_dict[transcript]["flat_junctions"].index(int(half_junction.split("_")[1])) % 2) == 0):  ###The index must be odd (would be even if 1-based), otherwise it's role (either as donor or acceptor) is not the same
-
-						if direction == "left":
-
-							query_junction_index = (standard_transcript_dict[transcript]["flat_junctions"].index(int(half_junction.split("_")[1])) - 1)/2
-
-						elif direction == "right":
-
-							query_junction_index = (standard_transcript_dict[transcript]["flat_junctions"].index(int(half_junction.split("_")[1])))/2
-
-
-
-						query_junction = standard_transcript_dict[transcript]["junctions"][query_junction_index]
-
-						query_junction_key = chrom + "_" + "_".join(map(str, query_junction)) + "_" + strand
-
-						if query_junction_key not in putative_forms: ###If it is already in, we don't want to add any new transcripts b/c these would be transcripts in which the junction is not the first junction
-
-							transcript_list = copy.deepcopy(standard_junction_indexed_transcript_dict[query_junction_key])
-
-							putative_forms[query_junction_key] = {"transcripts": transcript_list, "exon_pairs": []}
-
-							for sub_transcript in transcript_list: ###sub transcript to distinguish from outer loop transcript
-
-								sub_transcript_query_junction_index = standard_transcript_dict[sub_transcript]["junctions"].index(query_junction)
-
-								exon_pair = [standard_transcript_dict[sub_transcript]["exons"][sub_transcript_query_junction_index], standard_transcript_dict[sub_transcript]["exons"][sub_transcript_query_junction_index + 1]]
-
-								if exon_pair not in putative_forms[query_junction_key]["exon_pairs"]:
-
-									putative_forms[query_junction_key]["exon_pairs"].append(exon_pair)
-
-			#####Collapse exon pair lists
-
-			for junction_key in putative_forms:
-
-				left_exon_lengths = []
-
-				left_exons = []
-
-				for exon_pair in putative_forms[junction_key]["exon_pairs"]:
-	 
-					if exon_pair[0] not in left_exons:
-
-						left_exons.append(copy.deepcopy(exon_pair[0]))
-
-				for exon in left_exons:
-
-					left_exon_lengths.append(splice_lib.calc_length_exon_list([exon]))
-
-				final_left_exon = left_exons[left_exon_lengths.index(min(left_exon_lengths))]
-
-				right_exon_lengths = []
-
-				right_exons = []
-
-				for exon_pair in putative_forms[junction_key]["exon_pairs"]:
-	 
-					if exon_pair[1] not in right_exons:
-
-						right_exons.append(copy.deepcopy(exon_pair[1]))
-
-				for exon in right_exons:
-
-					right_exon_lengths.append(splice_lib.calc_length_exon_list([exon]))
-
-				final_right_exon = right_exons[right_exon_lengths.index(min(right_exon_lengths))]
-
-				putative_forms[junction_key]["final_exons"] = [final_left_exon, final_right_exon]
-
-			###Infer pairwise events
-
-			putative_forms_keys = copy.deepcopy(putative_forms.keys())
-
-
-			for index, junction_key in enumerate(putative_forms_keys):
-				       
-				if index < len(putative_forms_keys) - 1:
-
-					for sub_index in range(index + 1, len(putative_forms_keys)):
-
-						form_one_exons = copy.deepcopy(putative_forms[junction_key]["final_exons"])
-
-						form_two_exons = copy.deepcopy(putative_forms[putative_forms_keys[sub_index]]["final_exons"])
-
-						if direction == "left":
-
-							constitutive_exon_index = 1
-
-						elif direction == "right":
-
-							constitutive_exon_index = 0
-
-						if splice_lib.calc_length_exon_list([form_one_exons[constitutive_exon_index]]) < splice_lib.calc_length_exon_list([form_two_exons[constitutive_exon_index]]):
-
-							form_two_exons[constitutive_exon_index] = copy.deepcopy(form_one_exons[constitutive_exon_index]) ###this is not the alternative exon here
-
-						elif splice_lib.calc_length_exon_list([form_one_exons[constitutive_exon_index]]) > splice_lib.calc_length_exon_list([form_two_exons[constitutive_exon_index]]):
-
-							form_one_exons[constitutive_exon_index] = copy.deepcopy(form_two_exons[constitutive_exon_index])
-						###distal form is included form, (greater inter exon distance)
-
-
-						if (int(form_one_exons[1][0]) - int(form_one_exons[0][1])) > (int(form_two_exons[1][0]) - int(form_two_exons[0][1])):
-
-							included_exons = copy.deepcopy(form_one_exons)
-							excluded_exons = copy.deepcopy(form_two_exons)
-							included_form_transcripts = copy.deepcopy(putative_forms[junction_key]["transcripts"])
-							excluded_form_transcripts = copy.deepcopy(putative_forms[putative_forms_keys[sub_index]]["transcripts"])
-
-						elif (int(form_one_exons[1][0]) - int(form_one_exons[0][1])) < (int(form_two_exons[1][0]) - int(form_two_exons[0][1])):
-
-							excluded_exons = copy.deepcopy(form_one_exons)
-							included_exons = copy.deepcopy(form_two_exons)
-							excluded_form_transcripts = copy.deepcopy(putative_forms[junction_key]["transcripts"])
-							included_form_transcripts = copy.deepcopy(putative_forms[putative_forms_keys[sub_index]]["transcripts"])
-
-						else:
-
-							print form_one_exons
-							print form_two_exons
-							print direction
-							print putative_forms
-
-							sys.exit("Included and excluded forms seem to have the same inter-exon distance in af_al_events.  Exiting  . . . ")
-
-
-						add_event_to_dict = True
-
-						if direction == "left":
-
-							test_index = 0
-							exon_test_index = 1
-
-						elif direction == "right":
-
-							test_index = -1
-							exon_test_index = 0
-
-						for excluded_form_transcript in excluded_form_transcripts:
-
-							if excluded_exons[test_index][exon_test_index] != standard_transcript_dict[excluded_form_transcript]["exons"][test_index][exon_test_index]:
-
-								add_event_to_dict = False
-								break
-
-
-						if add_event_to_dict:
-
-							if event_type == "AF":
-
-								AF_counter += 1
-
-								event_id = "AF." + str(AF_counter)
-
-							elif event_type == "AL":
-
-								AL_counter += 1
-
-								event_id = "AL." + str(AL_counter)
-
-							else:
-
-								sys.exit("Unsupported event type in af_al_events. Exiting . . . ")
-
-							if event_id not in standard_event_dict:
-
-									standard_event_dict[event_id] = {
-											"event_type": event_type,
-											"included_exons": copy.deepcopy(included_exons),
-											"excluded_exons": copy.deepcopy(excluded_exons),
-											"chrom": chrom[:],
-											"strand": strand[:],
-											"included_count": 0,
-											"excluded_count": 0,
-											"included_form_transcripts": copy.deepcopy(included_form_transcripts),
-											"excluded_form_transcripts": copy.deepcopy(excluded_form_transcripts)
-										}
-							else:
-								sys.exit("Event id already found in dict - problem with naming strategy in alt_events")
-				       
-
-
-def mx_events(standard_transcript_dict, standard_event_dict):
-
-	MX_counter = 0
-	event_type = "MX"
-
-	flanking_exon_dict = {}  ##In this dict transcripts (and exons) will be indexed by the donor and acceptor (e.g. chrom_donor_acceptor_strand) of the flanking exons of exon triplets
-
-	for transcript in standard_transcript_dict:
-
-		for index, exon in enumerate(standard_transcript_dict[transcript]["exons"]):
-
-			if index <= (len(standard_transcript_dict[transcript]["exons"]) - 3):
-
-				exon_triplet = standard_transcript_dict[transcript]["exons"][index:(index + 3)]
-
-				chrom = standard_transcript_dict[transcript]["chrom"][:]
-				strand = standard_transcript_dict[transcript]["strand"][:]
-
-				donor_acceptor_index = chrom + "_" + str(exon_triplet[0][1]) + "_" + str(exon_triplet[2][0]) + "_" + strand
-
-				putative_alternative_exon_key = "_".join(map(str, exon_triplet[1]))
-
-				if donor_acceptor_index not in flanking_exon_dict:
-
-					flanking_exon_dict[donor_acceptor_index] = {"chrom": chrom, "strand": strand, "left_flanking_exons": [], "right_flanking_exons": [], "putative_alternative_exons": {}}
-
-				if exon_triplet[0] not in flanking_exon_dict[donor_acceptor_index]["left_flanking_exons"]:
-
-					flanking_exon_dict[donor_acceptor_index]["left_flanking_exons"].append(copy.deepcopy(exon_triplet[0]))
-
-				if exon_triplet[2] not in flanking_exon_dict[donor_acceptor_index]["right_flanking_exons"]:
-
-					flanking_exon_dict[donor_acceptor_index]["right_flanking_exons"].append(copy.deepcopy(exon_triplet[2]))
-
-				if putative_alternative_exon_key not in flanking_exon_dict[donor_acceptor_index]["putative_alternative_exons"]:
-
-					flanking_exon_dict[donor_acceptor_index]["putative_alternative_exons"][putative_alternative_exon_key] = []
-
-				if transcript not in flanking_exon_dict[donor_acceptor_index]["putative_alternative_exons"][putative_alternative_exon_key]:
-					flanking_exon_dict[donor_acceptor_index]["putative_alternative_exons"][putative_alternative_exon_key].append(transcript)
-
-	for key in flanking_exon_dict:
-
-		chrom = flanking_exon_dict[key]["chrom"][:]
-		strand = flanking_exon_dict[key]["strand"][:]
-
-		if len(flanking_exon_dict[key]["putative_alternative_exons"]) > 1:
-
-			left_flanking_exons = copy.deepcopy(flanking_exon_dict[key]["left_flanking_exons"])
-			left_flanking_exon_lengths = []
-
-			for exon in left_flanking_exons:
-
-				left_flanking_exon_lengths.append(splice_lib.calc_length_exon_list([exon]))
-
-			final_left_flanking_exon = left_flanking_exons[left_flanking_exon_lengths.index(min(left_flanking_exon_lengths))]
-
-			right_flanking_exons = copy.deepcopy(flanking_exon_dict[key]["right_flanking_exons"])
-			right_flanking_exon_lengths = []
-
-			for exon in right_flanking_exons:
-
-				right_flanking_exon_lengths.append(splice_lib.calc_length_exon_list([exon]))
-
-			final_right_flanking_exon = right_flanking_exons[right_flanking_exon_lengths.index(min(right_flanking_exon_lengths))]
-
-
-			alternative_exon_keys = flanking_exon_dict[key]["putative_alternative_exons"].keys()
-
-			for index, sub_key in enumerate(alternative_exon_keys):
-
-				if index < len(alternative_exon_keys) - 1:
-
-					for sub_index in range(index + 1, len(alternative_exon_keys)):
-
-						form_one_exon = map(int, sub_key.split("_"))
-
-						form_two_exon = map(int, alternative_exon_keys[sub_index].split("_"))
-
-						real_event = False
-
-						if form_one_exon[0] != form_two_exon[0] and form_one_exon[1] != form_two_exon[1]:
-
-							if form_one_exon[0] < form_two_exon[0] and form_one_exon[1] < form_two_exon[1]:
-
-								real_event = True
-								MX_counter += 1
-								event_id = "MX." + str(MX_counter)
-
-								if strand == "+":
-
-									included_form = "form_one"
-									excluded_form = "form_two"
-
-								elif strand == "-":
-
-									included_form = "form_two"
-									excluded_form = "form_one"
-
-
-							elif form_one_exon[0] > form_two_exon[0] and form_one_exon[1] > form_two_exon[1]:
-
-								real_event = True
-								MX_counter += 1
-								event_id = "MX." + str(MX_counter)
-
-								if strand == "+":
-
-									included_form = "form_two"
-									excluded_form = "form_one"
-
-								elif strand == "-":
-
-									included_form = "form_one"
-									excluded_form = "form_two"
-
-							if real_event:
-
-								included_exons = [copy.deepcopy(final_left_flanking_exon), copy.deepcopy(eval(included_form + "_exon")), copy.deepcopy(final_right_flanking_exon)]
-								excluded_exons = [copy.deepcopy(final_left_flanking_exon), copy.deepcopy(eval(excluded_form + "_exon")), copy.deepcopy(final_right_flanking_exon)]
-
-								if included_form == "form_one":
-									included_form_transcripts = copy.deepcopy(flanking_exon_dict[key]["putative_alternative_exons"][sub_key])
-									excluded_form_transcripts = copy.deepcopy(flanking_exon_dict[key]["putative_alternative_exons"][alternative_exon_keys[sub_index]])
-
-								elif included_form == "form_two":
-									excluded_form_transcripts = copy.deepcopy(flanking_exon_dict[key]["putative_alternative_exons"][sub_key])
-									included_form_transcripts = copy.deepcopy(flanking_exon_dict[key]["putative_alternative_exons"][alternative_exon_keys[sub_index]])
-
-								if event_id not in standard_event_dict:
-
-									standard_event_dict[event_id] = {
-											"event_type": event_type,
-											"included_exons": copy.deepcopy(included_exons),
-											"excluded_exons": copy.deepcopy(excluded_exons),
-											"chrom": chrom[:],
-											"strand": strand[:],
-											"included_count": 0,
-											"excluded_count": 0,
-											"included_form_transcripts": copy.deepcopy(included_form_transcripts),
-											"excluded_form_transcripts": copy.deepcopy(excluded_form_transcripts)
-										}
-
-
-
-
-
-
-def generate_exon_pair_dict(standard_transcript_dict):
-
-	exon_pair_dict = {"inner_left_missing": {}, "inner_right_missing": {}}  ###For the following exon pair [[100,200],[400,500]] with chr1, strand +, inner left missing would be chr1_100_400_500_+
-
-	for transcript in standard_transcript_dict:
-
-		chrom = standard_transcript_dict[transcript]["chrom"][:]
-		strand = standard_transcript_dict[transcript]["strand"][:]
-
-		def add_inner_left_missing_to_dict(inner_left_missing_key, exon_pair):
-
-			if inner_left_missing_key not in exon_pair_dict["inner_left_missing"]:
-
-				exon_pair_dict["inner_left_missing"][inner_left_missing_key] = {"exon_pairs": [], "transcripts": []}
-
-			exon_pair_dict["inner_left_missing"][inner_left_missing_key]["exon_pairs"].append(exon_pair)
-			exon_pair_dict["inner_left_missing"][inner_left_missing_key]["transcripts"].append(transcript)
-
-		def add_inner_right_missing_to_dict(inner_right_missing_key, exon_pair):
-
-			if inner_right_missing_key not in exon_pair_dict["inner_right_missing"]:
-
-				exon_pair_dict["inner_right_missing"][inner_right_missing_key] = {"exon_pairs": [], "transcripts": []}
-
-			exon_pair_dict["inner_right_missing"][inner_right_missing_key]["transcripts"].append(transcript)
-			exon_pair_dict["inner_right_missing"][inner_right_missing_key]["exon_pairs"].append(exon_pair)
-
-
-		for index, exon in enumerate(standard_transcript_dict[transcript]["exons"]):
-
-			if index != (len(standard_transcript_dict[transcript]["exons"]) - 1): ## Avoids list index out of range for final exon
-
-				exon_pair = [exon, standard_transcript_dict[transcript]["exons"][index + 1]]
-				inner_left_missing_key = chrom + "_" + str(exon_pair[0][0]) + "_" + str(exon_pair[1][0]) + "_" + str(exon_pair[1][1]) + "_" + strand
-				inner_right_missing_key = chrom + "_" + str(exon_pair[0][0]) + "_" + str(exon_pair[0][1]) + "_" + str(exon_pair[1][1]) + "_" + strand
-
-				if index == 0:
-
-					add_inner_right_missing_to_dict(inner_right_missing_key, exon_pair)  ###only this one bc alternative would be AF/AL
-
-				elif index == (len(standard_transcript_dict[transcript]["exons"]) - 2):
-
-					add_inner_left_missing_to_dict(inner_left_missing_key, exon_pair)    ###Only this one bc alternative would be AF/AL
-
-				else:
-
-					add_inner_left_missing_to_dict(inner_left_missing_key, exon_pair)
-					add_inner_right_missing_to_dict(inner_right_missing_key, exon_pair)
-
-
-	return exon_pair_dict
-
-
-def output_ioe(outdir, standard_event_dict, standard_transcript_dict):
-
-	event_centric_ioe_file = open(outdir + "/splice_lib_events.ioe", 'w')
+	event_centric_ioe_file = open(outdir + "/" + name + ".ioe", 'w')
 
 	event_centric_ioe_file.write("seqname" + "\t" + "gene_id" + "\t" + "event_id" + "\t" + "included_transcripts" + "\t" + "total_transcripts" + "\n")
 
@@ -1077,22 +792,24 @@ def output_ioe(outdir, standard_event_dict, standard_transcript_dict):
 	event_centric_ioe_file.close()
 
 
-def main():
+def main(args, transcript_dict = None):
 
 	start_time = time.time()
 
 	print "{0}: {1} seconds elapsed. Starting infer_pairwise_events.  Now parsing arguments.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
 
 	parser = argparse.ArgumentParser()
-	parser.add_argument("--transcript_gtf", type = str, help = "Full transcript gtf file", required = True)
+	parser.add_argument("--transcript_gtf", type = str, help = "Full transcript gtf file.  Not required, but if not provided a transcript dict must be passed as a parameter to the main function.")
 	parser.add_argument("--outdir", type = str, help = "Path to output directory", required = True)
 	parser.add_argument("--min_exon_length", type = int, help = "Minimum allowable exon length in input gtf.  Transcripts with shorter exons will be filtered. (default: 3)", default = 3)
 	parser.add_argument("--min_intron_length", type = int, help = "Minimum allowable intron length in input gtf. Transcripts with shorter introns will be filtered. (default: 20)", default = 20)
 	parser.add_argument("--max_exon_length", type = int, help = "Maximum allowable exon length in input gtf.  Transcripts with longer exons will be filtered (default = 35000)", default = 35000)
 	parser.add_argument("--max_intron_length", type = int, help = "Maximum allowable intron length in input gtf.  Transcripts with longer introns will be fitlered (default = 1000000)", default = 1000000)
 	parser.add_argument("--dump_pkl_file", action = "store_true", help = "If set, program will dump pickle file of event dict.")
+	parser.add_argument("--bedtools_path", type = str, help = "Path to bedtools executable (default = 'bedtools')", default = "bedtools")
+	parser.add_argument("--suppress_output", action = "store_true", help = "If set, GTF, GFF3, and IOE files will not be written.")
 
-	args = parser.parse_args()
+	args = parser.parse_args(args)
 
 	transcript_gtf = args.transcript_gtf
 	outdir = args.outdir
@@ -1101,14 +818,32 @@ def main():
 	max_exon_length = args.max_exon_length
 	max_intron_length = args.max_intron_length
 	dump_pkl_file = args.dump_pkl_file
+	bedtools_path = args.bedtools_path
+	suppress_output = args.suppress_output
+
+	if transcript_gtf is None and transcript_dict is None:
+
+		sys.exit("Neither transcript gtf nor transcript dict provided.  Exiting . . . ")
+
+	elif not (transcript_gtf is None or transcript_dict is None):
+
+		sys.exit("Both transcript gtf and transcript dict provided.  Please provided only one.  Exiting  . . . ")
 
 	subprocess.call("mkdir -p " + outdir, shell = True)
 
-	print "{0}: {1} seconds elapsed. Arguments parsed.  Now importing transcriptome gtf.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
-	
-	standard_transcript_dict = splice_lib.generate_standard_transcript_dict(transcript_gtf)
+	if transcript_gtf is not None:
 
-	print "{0}: {1} seconds elapsed. Transcriptome gtf imported.  Now sorting transcript exons.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+		print "{0}: {1} seconds elapsed. Arguments parsed.  Now importing transcriptome gtf.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+		
+		standard_transcript_dict = splice_lib.generate_standard_transcript_dict(transcript_gtf)
+
+	elif transcript_dict is not None:
+
+		print "{0}: {1} seconds elapsed. Arguments parsed.  Now copying transcript dict.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+
+		standard_transcript_dict = copy.deepcopy(transcript_dict)
+
+	print "{0}: {1} seconds elapsed. Transcriptome imported.  Now sorting transcript exons.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
 
 	splice_lib.sort_transcript_dict_exons(standard_transcript_dict)
 
@@ -1124,47 +859,29 @@ def main():
 
 	standard_junction_indexed_transcript_dict = splice_lib.index_transcripts_by_junctions(standard_transcript_dict)
 
-	print "{0}: {1} seconds elapsed. Created junction-indexed transcript dict.  Now creating assorted exon subsect dicts for event inference.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+	print "{0}: {1} seconds elapsed. Created junction-indexed transcript dict.  Creating node dict to associate groups of transcripts.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
 
-	donor_acceptor_indexed_set = splice_lib.index_transcripts_by_donor_acceptor(standard_transcript_dict)
 
-	standard_donor_acceptor_indexed_transcript_dict = donor_acceptor_indexed_set[0]
+	node_index_tx = node_dir(standard_transcript_dict)
 
-	first_donor_acceptor_left_dict = donor_acceptor_indexed_set[1]
 
-	first_donor_acceptor_right_dict = donor_acceptor_indexed_set[2]
+	print "{0}: {1} seconds elapsed. Created node dict.  Now comparing pairs of transcripts to create standard event dict.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
 
-	exon_pair_dict = generate_exon_pair_dict(standard_transcript_dict)
+	standard_event_dict = call_compare_transcripts(node_index_tx, standard_transcript_dict)
 
-	print "{0}: {1} seconds elapsed. Created assorted exon subset dicts.  Now identifying SE and MSE events.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
-
-	standard_event_dict = cassette_events(standard_transcript_dict, standard_junction_indexed_transcript_dict, standard_donor_acceptor_indexed_transcript_dict)
-
-	print "{0}: {1} seconds elapsed. SE and MSE event identification complete.  Now identifying A3 and A5 events.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
-
-	alt_events(exon_pair_dict, standard_event_dict)
-
-	print "{0}: {1} seconds elapsed. A3 and A5 event identification complete.  Now identifying AF and AL events.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
-
-	af_al_events(standard_event_dict, first_donor_acceptor_left_dict, first_donor_acceptor_right_dict, standard_transcript_dict, standard_donor_acceptor_indexed_transcript_dict, standard_junction_indexed_transcript_dict)
-
-	print "{0}: {1} seconds elapsed. AF and AL event identification complete.  Now identifying RI events.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+	print "{0}: {1} seconds elapsed. Created standard event dict.  Now searching for RI events that may lack common nodes.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
 
 	write_intron_bedfile(standard_junction_indexed_transcript_dict, outdir)
 
 	write_exon_bedfile(standard_transcript_dict, outdir)
 
-	call_bedtools_intersect(outdir)
+	call_bedtools_intersect(outdir, bedtools_path)
 
 	retained_intron_events(outdir, standard_transcript_dict, standard_event_dict)
 
-	print "{0}: {1} seconds elapsed. RI event identification complete.  Now identifying MX events.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
-	
-	mx_events(standard_transcript_dict, standard_event_dict)
+	print "{0}: {1} seconds elapsed. RI event identification complete.  Now cleaning/filtering events.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))	
 
-	print "{0}: {1} seconds elapsed. MX event identification complete.  Now cleaning/filtering events.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
-
-	splice_lib.collapse_redundant_junction_events(standard_event_dict)
+	splice_lib.collapse_redundant_junction_events(standard_event_dict, outdir)
 
 	standard_event_dict = splice_lib.rename_events(standard_event_dict)
 
@@ -1178,35 +895,62 @@ def main():
 
 	standard_event_dict = splice_lib.rename_events(standard_event_dict)
 
-	print "{0}: {1} seconds elapsed. Events renamed.  Now outputting event gtf.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
 
-	splice_lib.output_event_gtf(standard_event_dict, outdir)
+	print "{0}: {1} seconds elapsed. Event renaming complete.  Now separating events into junctioncounts friendly/unfriendly categories.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
 
-	print "{0}: {1} seconds elapsed. Event gtf output.  Now outputting MISO-style gff3.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+	friendly, unfriendly = separate_jc_friendly_events(standard_event_dict)
 
-	splice_lib.output_miso_event_gff3(standard_event_dict, outdir, name="splice_lib_events")
 
-	if dump_pkl_file:
-		print "{0}: {1} seconds elapsed. MISO_style event gff3 output.  Now dumping pickle file of event dict.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
-		pickle.dump(standard_event_dict, open(outdir + "/splice_lib_events.pkl", 'wb' ), -1 )
-		print "{0}: {1} seconds elapsed. Pickle file dump complete.  Now outputting IOE file.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+	if not suppress_output:
+		print "{0}: {1} seconds elapsed. Events separated.  Now outputting event gtfs and bedfiles.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+
+		splice_lib.output_event_gtf(friendly, outdir)
+		splice_lib.output_event_gtf(unfriendly, outdir, name = "junctioncounts_unfriendly_events")
+		splice_lib.output_event_bedfile(friendly, outdir)
+		splice_lib.output_event_bedfile(unfriendly, outdir, name = "junctioncounts_unfriendly_events")
+
+
+		print "{0}: {1} seconds elapsed. Event gtf output.  Now outputting MISO-style gff3s.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+
+		splice_lib.output_miso_event_gff3(friendly, outdir)
+		splice_lib.output_miso_event_gff3(unfriendly, outdir, name="junctioncounts_unfriendly_events")
+
+		if dump_pkl_file:
+			print "{0}: {1} seconds elapsed. MISO_style event gff3 output.  Now dumping pickle file of junctioncounts-friendly event dict.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+			pickle.dump(friendly, open(outdir + "/splice_lib_events.pkl", 'wb' ), -1 )
+			print "{0}: {1} seconds elapsed. Pickle file dump complete.  Now outputting IOE file.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+
+		else:
+			print "{0}: {1} seconds elapsed. MISO_style event gff3 output.  Now outputting IOE files.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+
+		output_ioe(outdir, friendly, standard_transcript_dict)
+		output_ioe(outdir, unfriendly, standard_transcript_dict, name = "junctioncounts_unfriendly_events")
+
+		print "{0}: {1} seconds elapsed. IOE file output.  Tabulating event type counts.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
 
 	else:
-		print "{0}: {1} seconds elapsed. MISO_style event gff3 output.  Now outputting IOE file.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
 
-	output_ioe(outdir, standard_event_dict, standard_transcript_dict)
-
-	print "{0}: {1} seconds elapsed. IOE file output.  Tabulating event type counts.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+		print "{0}: {1} seconds elapsed. Events separated.  Tabulating event type counts.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
 
 	event_type_counts = splice_lib.assess_event_types(standard_event_dict)
 
-	print "{0}: {1} seconds elapsed. Event type counts tabulated.  Found {2} total events with {3} MSE, {4} SE, {5} A3, {6} A5, {7} AF, {8} AL, {9} RI events and {10} MX events.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)), str(event_type_counts["total"]), str(event_type_counts["MSE"]), str(event_type_counts["SE"]), str(event_type_counts["A3"]), str(event_type_counts["A5"]), str(event_type_counts["AF"]), str(event_type_counts["AL"]), str(event_type_counts["RI"]), str(event_type_counts["MX"]))
+	print "{0}: {1} seconds elapsed. Event type counts tabulated.  Found {2} total events with {3} MS, {4} SE, {5} A3, {6} A5, {7} AF, {8} AL, {9} MF, {10} ML, {11} CF, {12} CL, {13} UF, {14} UL, {15} AT, {16} AP, {17} RI, {18} MX, {19} CO and {20} AB events.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)), str(event_type_counts["total"]), str(event_type_counts["MS"]), str(event_type_counts["SE"]), str(event_type_counts["A3"]), str(event_type_counts["A5"]), str(event_type_counts["AF"]), str(event_type_counts["AL"]), str(event_type_counts["MF"]), str(event_type_counts["ML"]), str(event_type_counts["CF"]), str(event_type_counts["CL"]), str(event_type_counts["UF"]), str(event_type_counts["UL"]), str(event_type_counts["AT"]), str(event_type_counts["AP"]),  str(event_type_counts["RI"]), str(event_type_counts["MX"]),  str(event_type_counts["CO"]), str(event_type_counts["AB"]))
 
 	print "{0}: {1} seconds elapsed. infer_pairwise_events complete.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
 	print "Ceci n'est pas un algorithme bioinformatique."
 
+	return standard_event_dict
+
 
 if __name__ == 	'__main__':
 
-	main()
+	main(sys.argv[1:])
+
+	#outdict = compare_transcripts("transcript1", "transcript2", [[100,200],[300,400],[500,600],[700,800],[900,1000], [1100, 1200], [1300, 1400], [1500, 1600]], [[20,50],[300,400],[500,600],[900,1000]], "-", "chr1")
+	
+	#for i in outdict:
+
+	#	print i
+	#	print outdict[i]
+	#	print ""
 

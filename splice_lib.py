@@ -3,6 +3,7 @@ import copy
 import re
 from operator import itemgetter
 import gzip
+import sys
 
 def get_junctions(exon_list):
 
@@ -28,20 +29,20 @@ def junction_overlap(subset_jl, superset_jl):
  	subset_subset = [i for i in subset_jl if i in superset_jl]
 
 	if subset_subset == subset_jl and len(subset_subset) > 0:
-		print "Subset subset contains all of the junctions - checking for connectivity . . . "
+		#print "Subset subset contains all of the junctions - checking for connectivity . . . "
 
 		first_subset_junction_index = superset_jl.index(subset_subset[0])
 		last_subset_junction_index = superset_jl.index(subset_subset[-1])
 		superset_junction_subset = superset_jl[first_subset_junction_index:last_subset_junction_index+1]
 	
 		if superset_junction_subset == subset_subset:
-			print "Exact junction match!"
+			#print "Exact junction match!"
 			return True
 		else:
-			print "Connectivity interrupted - no match"
+			#print "Connectivity interrupted - no match"
 			return False
 	else:
-		print "subset_subset missing junctions - no match"
+		#print "subset_subset missing junctions - no match"
 		return False
 
 
@@ -74,7 +75,12 @@ def translate_ORF(transcript_seq, stop_codons, valid_adj_cds_start):
 
 	'''
 
-	CDS_seq_left_bound = transcript_seq[valid_adj_cds_start - 1:].upper()
+	CDS_seq_left_bound = transcript_seq[valid_adj_cds_start:].upper()
+
+	if CDS_seq_left_bound[0:3] != "ATG":
+
+		return [False, "Not a real start", CDS_seq_left_bound[0:5]]
+
 	codon_list = []
 
 	for i in range(0,len(CDS_seq_left_bound) - 2,3):
@@ -83,14 +89,14 @@ def translate_ORF(transcript_seq, stop_codons, valid_adj_cds_start):
 		if codon not in stop_codons:
 			codon_list += [codon]
 		else:
-			print "In-frame stop codon found!"
+			#print "In-frame stop codon found!"
 			#codon_list += [codon]
 			#print "".join(codon_list)
-			adj_cds_end = valid_adj_cds_start + 3*len(codon_list) - 2 ###Again check this
+			adj_cds_end = valid_adj_cds_start + 3*len(codon_list) - 1 ###Again check this
 			return [True, adj_cds_end]
 
 	else:
-		print "No in-frame stop codon found"
+		#print "No in-frame stop codon found"
 		return [False, None]
 
 
@@ -121,26 +127,39 @@ def genome_to_transcript_coords(position, strand, transcript_exons, direction = 
 
 	if direction == "TG":	
 		
-		print "Converting transcript to genomic coords"	
 		for i in range(0,len(exon_lengths)-1):
 			if position < exon_lengths[i+1]:
 				if strand == "+":
-					return int(gtc_transcript_exons[i][0]) + position - exon_lengths[i]   ###double check this!!!  ####MAKE IT TRIPLE!!!!!!!!!!!!!!!!!!!
+					return int(gtc_transcript_exons[i][0]) + position - exon_lengths[i]  ###double check this!!!  ####MAKE IT TRIPLE!!!!!!!!!!!!!!!!!!!
 				elif strand == "-":
-					return int(gtc_transcript_exons[i][1]) -  position + exon_lengths[i]    ###double check this!!!!
+					return int(gtc_transcript_exons[i][1]) -  position + exon_lengths[i] ###double check this!!!!
 
 		else:
-			print "GARBAGE"			
+			print "GARBAGE - position not found. genome_to_transcript_coords"	
+			print position
+			print strand
+			print transcript_exons
+			print direction
+			print exon_lengths
+			sys.exit()
 				
 	elif direction == "GT":
-		print "Converting genomic to transcript coords"
 
 		for i in gtc_transcript_exons:
 			if position in range(int(i[0]),int(i[1]) + 1):
 				if strand == "+":
-					return abs(position - int(i[0])) + int(exon_lengths[gtc_transcript_exons.index(i)]) + 1
+					return abs(position - int(i[0])) + int(exon_lengths[gtc_transcript_exons.index(i)])
 				elif strand == "-":
-					return abs(position - int(i[1])) + int(exon_lengths[gtc_transcript_exons.index(i)]) + 1
+					return abs(position - int(i[1])) + int(exon_lengths[gtc_transcript_exons.index(i)])
+
+		else:
+			print "GARBAGE - position not found. genome_to_transcript_coords"	
+			print position
+			print strand
+			print transcript_exons
+			print direction
+			print exon_lengths
+			sys.exit()
 
 #####QUICK EXAMPLE
 #
@@ -192,12 +211,23 @@ def get_cds_utr_exons(strand, feature_exons, cds_start, cds_end, start_container
 
 	'''
 
+
 	feature_exons = copy.deepcopy(feature_exons)
 
 	if strand == "+":
 
 		five_utr_subset = copy.deepcopy(feature_exons[0:feature_exons.index(start_container) + 1])
+		#try:
 		cds_subset = copy.deepcopy(feature_exons[feature_exons.index(start_container):feature_exons.index(end_container) + 1])
+		#except ValueError:
+		#	print "Disaster afoot in get_cds_utr_exons"
+		#	print strand
+		#	print feature_exons
+		#	print cds_start
+		#	print cds_end
+		#	print start_container
+		#	print end_container
+		#	sys.exit()
 		three_utr_subset = copy.deepcopy(feature_exons[feature_exons.index(end_container):])
 
 		five_utr_subset[-1][-1] = int(cds_start) - 1
@@ -214,17 +244,8 @@ def get_cds_utr_exons(strand, feature_exons, cds_start, cds_end, start_container
 		cds_subset = copy.deepcopy(feature_exons[feature_exons.index(end_container):feature_exons.index(start_container) + 1])
 		five_utr_subset = copy.deepcopy(feature_exons[feature_exons.index(start_container):])
 
-		if len(cds_subset) == 0: 
-			print feature_exons
 
 		five_utr_subset[0][0] = int(cds_start) + 1
-
-
-		if len(cds_subset) == 0:
-			print feature_exons
-			print end_container
-			print start_container
-			print feature_exons[feature_exons.index(end_container)]
 
 		cds_subset[0][0] = cds_end
 		cds_subset[-1][-1] = cds_start
@@ -232,6 +253,47 @@ def get_cds_utr_exons(strand, feature_exons, cds_start, cds_end, start_container
 		three_utr_subset[-1][-1] = int(cds_end) - 1
 
 	return [five_utr_subset, cds_subset, three_utr_subset]
+
+def get_exon_subset(feature_exons, genomic_start, genomic_end):
+
+	if not genomic_start < genomic_end:
+		raise ValueError("genomic end not larger than genomic start in call to get_exon_subset")
+
+	start_found = False
+	end_found = False
+
+	for exon in feature_exons:
+
+		if not start_found and genomic_start in range(exon[0], exon[1] + 1):
+
+			start_exon = exon
+			start_found = True
+
+		if not end_found and genomic_end in range(exon[0], exon[1] + 1):
+
+			end_exon = exon
+			end_found = True
+
+		if start_found and end_found:
+
+			break
+
+	else:
+		print "Either start or end not found in provided exon list"
+		print feature_exons
+		print genomic_start
+		print genomic_end
+		sys.exit()
+
+
+
+
+	exon_subset = copy.deepcopy(feature_exons[feature_exons.index(start_exon):feature_exons.index(end_exon) + 1])
+
+	exon_subset[0][0] = genomic_start
+	exon_subset[-1][-1] = genomic_end
+
+	return exon_subset
 
 
 def calc_length_exon_list(exon_list):
@@ -255,17 +317,9 @@ def generate_standard_event_dict(event_gtf_filename):
 		Presently limited to SUPPA formatting
 	'''
 
-	event_types = ["A3","A5","AF","AL","RI","MX"]
+	event_types = ["A3", "A5", "AF", "AL", "RI", "MX", "SE", "MS", "MF", "ML", "CF", "CL", "CO", "AT", "AP"]
 
 	standard_event_dict = {}
-
-	#### spladder: SUPPA - the goal is to give consistent event type names (using SUPPA as the standard)
-	event_type_translator = {"exon_skip": "SE",
-							"alt_3prime": "A3",
-							"alt_5prime": "A5",
-							"mutex_exons": "MX",
-							"mult_exon_skip": "MSE",
-							"intron_retention": "RI"}
 
 	if event_gtf_filename.endswith(".gz"):
 
@@ -276,13 +330,6 @@ def generate_standard_event_dict(event_gtf_filename):
 		gtf_file = open(event_gtf_filename, 'r')
 
 	for line in gtf_file:
-
-		if "alternative" in line:
-			source_type = "suppa"
-		elif "_iso" in line:
-			source_type = "spladder"
-		elif "cluded" in line:
-			source_type = "splice_lib"
 
 		entry = line.split()
 
@@ -310,37 +357,16 @@ def generate_standard_event_dict(event_gtf_filename):
 
 					transcript_id = re.sub('[";]', '', transcript_id_entry[0].strip().split()[1])	
 
-			if source_type == "suppa":
-				event_id = ":".join(transcript_id.split(":")[0:-1])
-				form = transcript_id.split(":")[-1]
-				event_type = event_id.split(":")[0]
 
-			elif source_type == "spladder":
+			event_id = "_".join(transcript_id.split("_")[0:-1])
+			form = transcript_id.split("_")[-1]
 
-				event_id = "_".join(transcript_id.split("_")[0:-1])
-				form = transcript_id.split("_")[-1]
-				event_type = event_type_translator[event_id.strip().split(".")[0].strip()]
-				event_id = re.sub('_', '.', event_id)
+			for i in event_types:
 
-			elif source_type == "splice_lib":
+				if i in event_id:
 
-				event_id = "_".join(transcript_id.split("_")[0:-1])
-				form = transcript_id.split("_")[-1]
-
-				for i in event_types:
-
-					if i in event_id:
-
-						event_type = i
-						break
-
-				else:
-					if "MSE" in event_id:
-						event_type = "MSE"
-					elif "SE" in event_id:
-						event_type = "SE"
-				#event_type = event_id.split(".")[0]
-
+					event_type = i
+					break
 
 			if event_id not in standard_event_dict:
 
@@ -371,7 +397,28 @@ def generate_standard_event_dict(event_gtf_filename):
 
 def assess_event_types(standard_event_dict):
 
-	event_type_counts = {"MSE": 0, "SE": 0, "MX": 0, "A3": 0, "A5": 0, "AL": 0, "AF": 0, "RI": 0, "total": 0}
+	event_type_counts = {
+	"SE": 0,
+	"A3": 0,
+	"A5": 0,
+	"MS": 0,
+	"MX": 0,
+	"RI": 0,
+	"AF": 0,
+	"AL": 0,
+	"CO": 0,
+	"MF": 0,
+	"ML": 0,
+	"CF": 0,
+	"CL": 0,
+	"UF": 0,
+	"UL": 0,
+	"AT": 0,
+	"AP": 0,
+	"AB": 0,
+	"total": 0
+	}
+	
 
 	for i in standard_event_dict:
 
@@ -437,7 +484,7 @@ def check_integrity(event_dict):
 
 				print event_dict[event]
 
-		elif event_dict[event]["event_type"] == "MSE":
+		elif event_dict[event]["event_type"] == "MS":
 
 			if len(event_dict[event]["included_exons"]) <= 3 or len(event_dict[event]["excluded_exons"]) != 2:
 
@@ -473,7 +520,7 @@ def check_integrity(event_dict):
 
 
 
-def generate_standard_transcript_dict(transcript_gtf_filename):
+def generate_standard_transcript_dict(transcript_gtf_filename, ccds = False, feature = "exon"):
 	'''
 		Generates a dictionary of transcripts indexed by transcript ID
 		Presently limited to stringtie formatting
@@ -494,9 +541,15 @@ def generate_standard_transcript_dict(transcript_gtf_filename):
 
 		if not line.startswith("#"):
 
+			if ccds:
+
+				if "CCDS" not in line:
+
+					continue
+
 			entry = line.split()
 
-			if entry[2] == "exon":
+			if entry[2] == feature:
 
 				start = int(entry[3])
 				end = int(entry[4])
@@ -585,6 +638,10 @@ def add_junctions_to_transcript_dict(transcript_dict):
 	for transcript in transcript_dict:
 
 		transcript_dict[transcript]["junctions"] = get_junctions(transcript_dict[transcript]["exons"])
+
+		transcript_dict[transcript]["junction_counts"] = dict(zip([transcript_dict[transcript]["chrom"] + "_" + "_".join(map(str, junction)) + "_" + transcript_dict[transcript]["strand"] for junction in transcript_dict[transcript]["junctions"]], [0]*len(transcript_dict[transcript]["junctions"])))
+
+		transcript_dict[transcript]["total_junction_count"] = 0
 
 
 
@@ -680,12 +737,14 @@ def index_transcripts_by_donor_acceptor(full_transcript_dict):
 	return [donor_acceptor_dict, first_acceptor_last_donor_dict_left, first_acceptor_last_donor_dict_right]
 
 
-def collapse_redundant_junction_events(standard_event_dict):
+def collapse_redundant_junction_events(standard_event_dict, outdir):
 
 
 	'''
 		Searches for events with identical included+excluded form junction sets (happens a lot with AF events (probably AL too)), collapses to a single event
 	'''
+
+	event_type_clash = open(outdir + "/event_type_clash.tsv", 'w')
 
 	junction_set_dict = {}
 
@@ -726,13 +785,15 @@ def collapse_redundant_junction_events(standard_event_dict):
 		chrom = standard_event_dict[event]["chrom"]
 		strand = standard_event_dict[event]["strand"]
 
-		key = chrom + "_" + flat_joined_included_jl + "_" +  flat_joined_excluded_jl + "_" + strand
+		if flat_joined_included_jl != "" and flat_joined_excluded_jl != "":
 
-		if key not in junction_set_dict:
+			key = chrom + "_" + flat_joined_included_jl + "_" +  flat_joined_excluded_jl + "_" + strand
 
-			junction_set_dict[key] = []
+			if key not in junction_set_dict:
 
-		junction_set_dict[key].append(event)
+				junction_set_dict[key] = []
+
+			junction_set_dict[key].append(event)
 
 	for key in junction_set_dict:
 
@@ -740,16 +801,29 @@ def collapse_redundant_junction_events(standard_event_dict):
 
 			new_key = ",".join(junction_set_dict[key])
 
-			standard_event_dict[new_key] = copy.deepcopy(standard_event_dict[junction_set_dict[key][1]])
+			event_types = []
 
-			#print new_key, standard_event_dict[new_key]
+			for event in junction_set_dict[key]:
 
-			
+				if standard_event_dict[event]["event_type"] not in event_types:
+
+					event_types.append(standard_event_dict[event]["event_type"])
+
+			if not all([i == event_types[0] for i in event_types]):
+
+				event_type_clash.write("_".join(junction_set_dict[key]) + "\t" + key + "\n")
+				standard_event_dict[new_key] = copy.deepcopy(standard_event_dict[junction_set_dict[key][1]])
+				standard_event_dict[new_key]["event_type"] = "AB"
+
+			else:
+
+				standard_event_dict[new_key] = copy.deepcopy(standard_event_dict[junction_set_dict[key][1]])
 
 			for old_key in junction_set_dict[key]:
 
 				del standard_event_dict[old_key]
 
+	event_type_clash.close()
 
 
 def generate_junction_indexed_event_dict(standard_event_dict):
@@ -864,11 +938,21 @@ def rename_events(standard_event_dict):
 	"SE": 1,
 	"A3": 1,
 	"A5": 1,
-	"MSE": 1,
+	"MS": 1,
 	"MX": 1,
 	"RI": 1,
 	"AF": 1,
-	"AL": 1
+	"AL": 1,
+	"CO": 1,
+	"MF": 1,
+	"ML": 1,
+	"CF": 1,
+	"CL": 1,
+	"UF": 1,
+	"UL": 1,
+	"AT": 1,
+	"AP": 1,
+	"AB": 1
 	}
 	
 	new_event_dict = {}
@@ -912,6 +996,20 @@ def output_event_gtf(standard_event_dict, outdir, name="splice_lib_events"):
 				isoform_id = event + "_excluded"
 
 				file.write("\t".join([chrom, "splice_lib_event", "exon", start, end, ".", strand, ".", "gene_id " + '"' + event + '"; transcript_id ' + '"' + isoform_id + '";']) + "\n")
+
+def output_event_bedfile(standard_event_dict, outdir, name = "splice_lib_events"):
+
+	with open(outdir + "/" + name + ".bed", 'w') as file:
+
+		for event in standard_event_dict:
+
+			chrom = re.sub("&","_",standard_event_dict[event]["chrom"])
+			strand = standard_event_dict[event]["strand"]	
+
+			start = str(standard_event_dict[event]["included_exons"][0][0])
+			end = str(standard_event_dict[event]["included_exons"][-1][1])
+
+			file.write("\t".join([chrom, start, end, event, "1000", strand]) + "\n")	
 
 
 def output_event_gtf_with_transcripts(standard_event_dict, outdir, name="splice_lib_events_with_transcripts"):
@@ -992,8 +1090,28 @@ def output_miso_event_gff3(standard_event_dict, outdir, name="splice_lib_events"
 
 
 
-				
+def output_transcript_gtf(standard_transcript_dict, outdir, name = "splice_lib_transcripts"):
 
+	with open(outdir + "/" + name + ".gtf", 'w') as file:
 
+		for transcript in standard_transcript_dict:
 
-		
+			chrom = re.sub("&", "_", standard_transcript_dict[transcript]["chrom"])
+			strand = standard_transcript_dict[transcript]["strand"]
+
+			start = str(standard_transcript_dict[transcript]["exons"][0][0])
+			end = str(standard_transcript_dict[transcript]["exons"][-1][1])
+
+			try:
+				gene = standard_transcript_dict[transcript]["gene"]
+			except KeyError:
+				sys.exit("Tried to output a transcript gtf with no gene name. Exiting . . . ")
+
+			file.write("\t".join([chrom, "splice_lib_transcript", "transcript", start, end, ".", strand, ".", "gene_name " + '"' + gene + '"; transcript_id ' + '"' + transcript + '";']) + "\n")
+
+			for exon in standard_transcript_dict[transcript]["exons"]:
+
+				start = str(exon[0])
+				end = str(exon[1])
+
+				file.write("\t".join([chrom, "splice_lib_transcript", "exon", start, end, ".", strand, ".", "gene_name " + '"' + gene + '"; transcript_id ' + '"' + transcript + '";']) + "\n")
