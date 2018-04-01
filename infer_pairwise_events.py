@@ -60,7 +60,7 @@ def filter_standard_transcript_dict(full_transcript_dict, outdir, min_exon_lengt
 
 	filtered_transcript_log.close()
 
-def filter_event_dict(standard_event_dict, outdir, min_exon_length, min_intron_length, max_exon_length, max_intron_length):
+def filter_event_dict(standard_event_dict, outdir, min_exon_length, min_intron_length, max_exon_length, max_intron_length, min_AP_AT_dist = 100):
  
 	''' input: standard event dict, constraints on exon, intron length
 		output: modifies standard event dict (deletes items that fail the filtration criteria)
@@ -98,6 +98,12 @@ def filter_event_dict(standard_event_dict, outdir, min_exon_length, min_intron_l
 					events_to_delete.append(event)
 					break
 
+		elif standard_event_dict[event]["event_type"] in ["AT", "AP"]:
+
+			if splice_lib.calc_length_exon_list(standard_event_dict[event]["included_exons"]) - splice_lib.calc_length_exon_list(standard_event_dict[event]["excluded_exons"]) < min_AP_AT_dist:
+
+				events_to_delete.append(event)
+
 		else:
 			for junction in standard_event_dict[event]["included_junctions"] + standard_event_dict[event]["excluded_junctions"]:
 
@@ -113,7 +119,10 @@ def filter_event_dict(standard_event_dict, outdir, min_exon_length, min_intron_l
 		del standard_event_dict[event]
 		filtered_event_log.write(event + "\n")
 
+	filtered_event_log.close()
+
 	del events_to_delete
+
 
 
 def node_dir(standard_transcript_dict):
@@ -812,6 +821,7 @@ def main(args, transcript_dict = None):
 	parser.add_argument("--dump_pkl_file", action = "store_true", help = "If set, program will dump pickle file of event dict.")
 	parser.add_argument("--bedtools_path", type = str, help = "Path to bedtools executable (default = 'bedtools')", default = "bedtools")
 	parser.add_argument("--suppress_output", action = "store_true", help = "If set, GTF, GFF3, and IOE files will not be written.")
+	parser.add_argument("--min_AP_AT_dist", type = int, help = "Specifies minimum distance between alternative polyadenylation sites, TSS in order for AP, AT events to be retained. Default is 100", default = 100)
 
 	args = parser.parse_args(args)
 
@@ -824,6 +834,7 @@ def main(args, transcript_dict = None):
 	dump_pkl_file = args.dump_pkl_file
 	bedtools_path = args.bedtools_path
 	suppress_output = args.suppress_output
+	min_AP_AT_dist = args.min_AP_AT_dist
 
 	if transcript_gtf is None and transcript_dict is None:
 
@@ -895,7 +906,7 @@ def main(args, transcript_dict = None):
 
 	splice_lib.filter_overlapping_se_alt_donacc_events(standard_event_dict, junction_indexed_event_dict)
 
-	filter_event_dict(standard_event_dict, outdir, min_exon_length, min_intron_length, max_exon_length, max_intron_length)
+	filter_event_dict(standard_event_dict, outdir, min_exon_length, min_intron_length, max_exon_length, max_intron_length, min_AP_AT_dist = min_AP_AT_dist)
 	
 	print "{0}: {1} seconds elapsed. Event cleaning/filtering complete.  Now renaming events.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
 
