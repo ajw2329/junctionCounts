@@ -200,6 +200,7 @@ def compare_transcripts(tx1, tx2, tx1_exons, tx2_exons, strand, chrom):
 	tx1_nodes, tx1_node_exon_dict = convert_to_nodes(tx1_exons)
 	tx2_nodes, tx2_node_exon_dict = convert_to_nodes(tx2_exons)
 
+
 	if len(tx1_nodes) > len(tx2_nodes):
 
 		tx2_nodes[len(tx2_nodes):len(tx1_nodes)] = (len(tx1_nodes) - len(tx2_nodes))*["filler"]
@@ -249,17 +250,19 @@ def compare_transcripts(tx1, tx2, tx1_exons, tx2_exons, strand, chrom):
 					form_1_exons = []
 					form_2_exons = []
 
+					#form_1_exons[0] = tx1_node_exon_dict[node]
+
 					for node in form_1_nodes:
 
 						if tx1_node_exon_dict[node] not in form_1_exons:
 
-							form_1_exons.append(tx1_node_exon_dict[node])
+							form_1_exons.append(copy.deepcopy(tx1_node_exon_dict[node]))
 
 					for node in form_2_nodes:
 
 						if tx2_node_exon_dict[node] not in form_2_exons:
 
-							form_2_exons.append(tx2_node_exon_dict[node])
+							form_2_exons.append(copy.deepcopy(tx2_node_exon_dict[node]))
 
 
 					#classify event type as well as included/excluded form
@@ -269,6 +272,7 @@ def compare_transcripts(tx1, tx2, tx1_exons, tx2_exons, strand, chrom):
 
 
 					events[key_string] = {"included_exons": copy.deepcopy(classified["included_exons"]), "excluded_exons": copy.deepcopy(classified["excluded_exons"]), "event_type": copy.deepcopy(classified["event_type"]), "included_form_transcripts": [copy.deepcopy(classified["included_form_transcript"])], "excluded_form_transcripts": [copy.deepcopy(classified["excluded_form_transcript"])], "strand": strand, "chrom": chrom, "included_count": 0, "excluded_count": 0, "sources": [], "pre_common": copy.deepcopy(pre_common), "post_common": copy.deepcopy(post_common)}
+
 
 					if tx1_nodes.index(post_common[-1]) < len(tx1_nodes) and tx2_nodes.index(post_common[-1]) < len(tx2_nodes):
 						scan_for_events(tx1_nodes.index(post_common[-1]), tx2_nodes.index(post_common[-1]))
@@ -882,6 +886,8 @@ def main(args, transcript_dict = None):
 	print "{0}: {1} seconds elapsed. RI event identification complete.  Now cleaning/filtering events.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))	
 
 	splice_lib.collapse_redundant_junction_events(standard_event_dict, outdir)
+
+	#splice_lib.complete_event_dict(standard_event_dict)
 
 	standard_event_dict = splice_lib.rename_events(standard_event_dict)
 

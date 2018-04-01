@@ -490,17 +490,12 @@ def check_integrity(event_dict):
 
 				incomplete_events.append(event)			
 
-		elif event_dict[event]["event_type"] == "A3":
+		elif event_dict[event]["event_type"] in ["A3", "A5", "AL", "AF"]:
 
 			if len(event_dict[event]["included_exons"]) != 2 or len(event_dict[event]["excluded_exons"]) != 2:
 
 				incomplete_events.append(event)
 
-		elif event_dict[event]["event_type"] == "A5":
-
-			if len(event_dict[event]["included_exons"]) != 2 or len(event_dict[event]["excluded_exons"]) != 2:
-
-				incomplete_events.append(event)
 
 		elif event_dict[event]["event_type"] == "RI":
 
@@ -513,6 +508,37 @@ def check_integrity(event_dict):
 			if len(event_dict[event]["included_exons"]) != 3 or len(event_dict[event]["excluded_exons"]) != 3:
 
 				incomplete_events.append(event)
+
+		elif event_dict[event]["event_type"] in ["AT", "AP"]:
+
+			if len(event_dict[event]["included_exons"]) != 1 or len(event_dict[event]["excluded_exons"]) != 1:
+
+				incomplete_events.append(event)
+
+		elif event_dict[event]["event_type"] in ["MF", "ML"]:
+
+			if (len(event_dict[event]["included_exons"]) < 3 and len(event_dict[event]["excluded_exons"]) < 3) or len(event_dict[event]["included_exons"]) < 2 or len(event_dict[event]["excluded_exons"]) < 2:
+
+				incomplete_events.append(event)
+
+		elif event_dict[event]["event_type"] in ["UF", "UL"]:
+
+			if len(event_dict[event]["excluded_exons"]) != 1 or len(event_dict[event]["included_exons"]) < 2:
+
+				incomplete_events.append(event)
+
+		elif event_dict[event]["event_type"] in ["CF", "CL"]:
+
+			if (len(event_dict[event]["included_exons"]) < 2 and len(event_dict[event]["excluded_exons"]) < 2) or len(event_dict[event]["included_exons"]) < 1 or len(event_dict[event]["excluded_exons"]) < 1:
+
+				incomplete_events.append(event)
+
+		elif event_dict[event]["event_type"] == "CO":
+
+			if (len(event_dict[event]["included_exons"]) < 2 and len(event_dict[event]["excluded_exons"]) < 2) or len(event_dict[event]["included_exons"]) < 1 or len(event_dict[event]["excluded_exons"]) < 1:
+
+				incomplete_events.append(event)
+
 
 	for event in incomplete_events:
 
