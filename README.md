@@ -1,5 +1,9 @@
 # inferPairwiseEvents
 
+
+![Screenshot](events.png)
+
+
 usage: infer_pairwise_events.py [-h] [--transcript_gtf TRANSCRIPT_GTF]  
                                 --outdir OUTDIR  
                                 [--min_exon_length MIN_EXON_LENGTH]  
