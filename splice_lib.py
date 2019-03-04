@@ -4,6 +4,7 @@ import re
 from operator import itemgetter
 import gzip
 import sys
+import translate_lib as tl
 
 def get_junctions(exon_list):
 
@@ -54,6 +55,8 @@ def position_contained(exon_list, position):
         Checks whether position is contained within any of the exons, returns list containing boolean (True if the position was contained in one of the exons), the containing exon entry (or None of the position was not contain)
     '''
 
+    exon_list = [map(int, i) for i in exon_list]
+
     for exon in exon_list:
 
 
@@ -93,11 +96,19 @@ def translate_ORF(transcript_seq, stop_codons, valid_adj_cds_start):
             #codon_list += [codon]
             #print "".join(codon_list)
             adj_cds_end = valid_adj_cds_start + 3*len(codon_list) - 1 ###Again check this
-            return [True, adj_cds_end]
+            codon_list=("").join(codon_list)
+            result= [True,adj_cds_end,codon_list]
+            break
 
     else:
         #print "No in-frame stop codon found"
-        return [False, None]
+        codon_list = ("").join(codon_list)
+        result=[False, None,codon_list]
+
+    AA= tl.translate_seq(codon_list)
+    result.append(AA)
+    return result
+
 
 
 def genome_to_transcript_coords(position, strand, transcript_exons, direction = "TG"): ##Where "TG" is transcript -> genome and "GT" is genome -> transcript
@@ -314,10 +325,9 @@ def calc_length_exon_list(exon_list):
 def generate_standard_event_dict(event_gtf_filename):
     '''
         Generates a dictionary of events indexed by event ID
-        Presently limited to SUPPA formatting
     '''
 
-    event_types = ["A3", "A5", "AF", "AL", "RI", "MX", "SE", "MS", "MF", "ML", "CF", "CL", "CO", "AT", "AP"]
+    event_types = ["A3", "A5", "AF", "AL", "RI", "MX", "SE", "MS", "MF", "ML", "CF", "CL", "CO", "AT", "AP", "AB", "MR"]
 
     standard_event_dict = {}
 
@@ -395,9 +405,217 @@ def generate_standard_event_dict(event_gtf_filename):
 
     return standard_event_dict
 
+
+
+
+def generate_standard_event_dict_chrom_strand(event_gtf_filename):
+    '''
+        Generates a dictionary of events indexed by event ID
+    '''
+
+    event_types = ["A3", "A5", "AF", "AL", "RI", "MX", "SE", "MS", "MF", "ML", "CF", "CL", "CO", "AT", "AP", "AB", "MR"]
+
+    standard_event_dict = {}
+
+    if event_gtf_filename.endswith(".gz"):
+
+        gtf_file = gzip.open(event_gtf_filename, 'rb')
+
+    else:
+
+        gtf_file = open(event_gtf_filename, 'r')
+
+    for line in gtf_file:
+
+        entry = line.split()
+
+        if entry[2] == "exon":
+
+            start = int(entry[3])
+            end = int(entry[4])
+
+            chrom = re.sub("_","&",entry[0].strip())
+            strand = entry[6].strip()
+
+            transcript_id_entry = re.findall('transcript_id\s\"[^;\"]+\";', line)
+
+            if len(transcript_id_entry) == 0:
+
+                sys.exit("Bad gtf file - 'transcript_id' not found in exon entry")
+
+            elif len(transcript_id_entry) > 1:
+
+                print "Bad transcript_id - setting transcript_id to 'bad_transcript_id'"
+
+                transcript_id = "bad_transcript_id"
+
+            else:
+
+                    transcript_id = re.sub('[";]', '', transcript_id_entry[0].strip().split()[1])    
+
+
+            event_id = "_".join(transcript_id.split("_")[0:-1])
+            form = transcript_id.split("_")[-1]
+
+            for i in event_types:
+
+                if i in event_id:
+
+                    event_type = i
+                    break
+
+            standard_event_dict.setdefault(chrom, {"+": {}, "-": {}})
+
+            if event_id not in standard_event_dict[chrom][strand]:
+
+                standard_event_dict[chrom][strand][event_id] = {
+                    "event_type": event_type,
+                    "included_exons": [],
+                    "excluded_exons": [],
+                    "chrom": chrom,
+                    "strand": strand,
+                    "included_count": 0,
+                    "excluded_count": 0,
+                    "included_form_transcripts": [],
+                    "excluded_form_transcripts": [],
+                    "sources": []
+                }
+
+            if form == "included":
+
+                standard_event_dict[chrom][strand][event_id]["included_exons"].append([start, end])
+
+            if form == "excluded":
+
+                standard_event_dict[chrom][strand][event_id]["excluded_exons"].append([start, end])
+
+    gtf_file.close()
+
+    return standard_event_dict
+
+
+
+
+
+def find_exons_unique_to_form(standard_event_dict):
+    '''
+        post-hoc method to find exons unique to included, excluded forms respectively and add them to new fields in event_dict
+    '''
+
+    for event in standard_event_dict:
+
+        included_unique, excluded_unique = find_exons_unique_to_form_lists(standard_event_dict[event]["included_exons"],  standard_event_dict[event]["excluded_exons"])
+
+        standard_event_dict[event]["included_unique_exons"] = included_unique
+        standard_event_dict[event]["excluded_unique_exons"] = excluded_unique
+
+
+def find_exons_unique_to_form_lists(included_exons, excluded_exons):
+
+    included_set = set(["_".join(map(str, i)) for i in included_exons])
+    excluded_set = set(["_".join(map(str, i)) for i in excluded_exons])
+
+
+    included_unique = included_set - excluded_set
+    excluded_unique = excluded_set - included_set
+
+    included_unique = [map(int, i.split("_")) for i in included_unique]
+    excluded_unique = [map(int, i.split("_")) for i in excluded_unique]
+
+    return included_unique, excluded_unique
+
+
+def get_alt_regions(included_exons, excluded_exons, included_unique, excluded_unique):
+
+    def expand_to_set(exon_list):
+
+        value_list = []
+
+        for exon in exon_list:
+
+            value_list.extend(range(exon[0], exon[1] + 1))
+
+        return set(value_list)
+
+    included_unique_exon_vals = expand_to_set(included_unique)
+    excluded_unique_exon_vals = expand_to_set(excluded_unique)
+    included_exon_vals = expand_to_set(included_exons)
+    excluded_exon_vals = expand_to_set(excluded_exons)
+
+    included_unique_vals = sorted(list(included_unique_exon_vals.difference(excluded_exon_vals)))
+    excluded_unique_vals = sorted(list(excluded_unique_exon_vals.difference(included_exon_vals)))
+
+    def summarize_as_regions(val_list):
+
+        region_list = []
+
+        if len(val_list) == 0:
+
+            return region_list
+
+        initial_value = val_list[0]
+
+        for index, i in enumerate(val_list):
+
+            if index != len(val_list) - 1 and val_list[index + 1] != i + 1:
+
+                region_list += [[initial_value, i]]
+                initial_value = val_list[index + 1]
+
+        else:
+            region_list += [[initial_value, val_list[-1]]]
+
+        return region_list
+
+    included_unique_regions = summarize_as_regions(included_unique_vals)
+    excluded_unique_regions = summarize_as_regions(excluded_unique_vals)
+
+    return (included_unique_regions, excluded_unique_regions)
+
+
+
+
+
+
+def get_exon_overlapping_ei_junctions_list(included_exons, excluded_exons):
+
+    included_exons = [map(int, i) for i in included_exons]
+    excluded_exons = [map(int, i) for i in excluded_exons]
+
+    included_unique_exons, excluded_unique_exons = find_exons_unique_to_form_lists(included_exons, excluded_exons)
+
+    included_unique_exon_ol_eij = get_exon_overlapping_ei_junctions_core(excluded_unique_exons, included_exons)
+    excluded_unique_exon_ol_eij = get_exon_overlapping_ei_junctions_core(included_unique_exons, excluded_exons)
+
+    return included_unique_exon_ol_eij, excluded_unique_exon_ol_eij
+
+
+def get_exon_overlapping_ei_junctions_core(comparator_unique_exons, source_exons):
+
+    source_unique_exon_ol_eij = []
+
+    for exon in comparator_unique_exons:
+
+        for index, boundary in enumerate(exon):
+
+            for other_exon in source_exons:
+
+                if other_exon[0] < int(boundary) < other_exon[1]:
+
+                    if index == 1: 
+                        source_unique_exon_ol_eij += [boundary + 1]
+                    elif index == 0:
+                        source_unique_exon_ol_eij += [boundary - 1]
+
+    return source_unique_exon_ol_eij
+
+
+
+
 def assess_event_types(standard_event_dict):
 
     event_type_counts = {
+    "MR": 0,
     "SE": 0,
     "A3": 0,
     "A5": 0,
@@ -428,45 +646,338 @@ def assess_event_types(standard_event_dict):
     return event_type_counts
 
 
-def complete_event_dict(standard_event_dict):
+def assess_event_types_chrom_strand(standard_event_dict):
+
+    event_type_counts = {
+    "MR": 0,
+    "SE": 0,
+    "A3": 0,
+    "A5": 0,
+    "MS": 0,
+    "MX": 0,
+    "RI": 0,
+    "AF": 0,
+    "AL": 0,
+    "CO": 0,
+    "MF": 0,
+    "ML": 0,
+    "CF": 0,
+    "CL": 0,
+    "UF": 0,
+    "UL": 0,
+    "AT": 0,
+    "AP": 0,
+    "AB": 0,
+    "total": 0
+    }
+    
+
+    for chrom in standard_event_dict:
+
+        for strand in standard_event_dict[chrom]:
+
+            for event in standard_event_dict[chrom][strand]:
+
+                event_type_counts[standard_event_dict[chrom][strand][event]["event_type"]] += 1
+                event_type_counts["total"] += 1
+
+    return event_type_counts
+
+
+def complete_event_dict(standard_event_dict, suppress_unique_edges = False, suppress_eij = False, no_ends = True, inform_using_ri_events = True):
 
     '''
         Sorts event exons, infers junctions - necessary to complete event dict
 
-        Other functions also have this effect - e.g. collapse_redundant_junctions.
+        Now adds EIJ if add_eij is set - restricted to EIJ that overlap an exon in the other form
+
+        Now adds form-unique exon edges
     '''
 
     for event in standard_event_dict:
 
-        included_exons = [map(str, i) for i in sorted(standard_event_dict[event]["included_exons"], key=itemgetter(0))]
+        chrom = standard_event_dict[event]["chrom"]
+        strand = standard_event_dict[event]["strand"]
+
+        included_exons = [map(str, i) for i in sorted([map(int, i) for i in standard_event_dict[event]["included_exons"]], key=itemgetter(0))]
         standard_event_dict[event]["included_exons"] = copy.deepcopy(included_exons)
 
-        excluded_exons = [map(str,i) for i in sorted(standard_event_dict[event]["excluded_exons"], key=itemgetter(0))]
+        excluded_exons = [map(str,i) for i in sorted([map(int, i) for i in standard_event_dict[event]["excluded_exons"]], key=itemgetter(0))]
         standard_event_dict[event]["excluded_exons"] = copy.deepcopy(excluded_exons)
 
         included_jl = get_junctions(included_exons)
         excluded_jl = get_junctions(excluded_exons)
 
-        standard_event_dict[event]["included_junctions"] = copy.deepcopy(included_jl)
-        standard_event_dict[event]["excluded_junctions"] = copy.deepcopy(excluded_jl)
+        standard_event_dict[event]["included_junctions"] = included_jl
+        standard_event_dict[event]["excluded_junctions"] = excluded_jl
 
-        standard_event_dict[event]["included_junction_counts"] = {(standard_event_dict[event]["chrom"] + "_" + "_".join(map(str,i)) + "_" + standard_event_dict[event]["strand"]):0 for i in included_jl}
-        standard_event_dict[event]["excluded_junction_counts"] = {(standard_event_dict[event]["chrom"] + "_" + "_".join(map(str,i)) + "_" + standard_event_dict[event]["strand"]):0 for i in excluded_jl}
+        standard_event_dict[event]["included_junction_counts"] = {(chrom + "_" + "_".join(map(str,i)) + "_" + strand):0 for i in included_jl}
+        standard_event_dict[event]["excluded_junction_counts"] = {(chrom + "_" + "_".join(map(str,i)) + "_" + strand):0 for i in excluded_jl}
+        standard_event_dict[event]["included_count"] = 0
+        standard_event_dict[event]["excluded_count"] = 0
 
-        ###handle RI included "junctions"
+        if (not suppress_eij) or standard_event_dict[event]["event_type"] in ["RI", "MR"]:
 
-        if standard_event_dict[event]["event_type"] == "RI":  
+            included_unique_exon_ol_eij, excluded_unique_exon_ol_eij = get_exon_overlapping_ei_junctions_list(included_exons, excluded_exons)
 
-            chrom = standard_event_dict[event]["chrom"]
-            strand = standard_event_dict[event]["strand"]
-            start = str(int(standard_event_dict[event]["excluded_junctions"][0][0]) + 1)
-            end = str(int(standard_event_dict[event]["excluded_junctions"][0][1]) - 1)
+            standard_event_dict[event]["included_ei_junctions"] = included_unique_exon_ol_eij
+            standard_event_dict[event]["excluded_ei_junctions"] = excluded_unique_exon_ol_eij
 
-            standard_event_dict[event]["included_junctions"] = included_jl = [[int(start), int(start) + 1], [int(end) - 1, int(end)]]
-            standard_event_dict[event]["included_junction_counts"] = {(standard_event_dict[event]["chrom"] + "_" + "_".join(map(str,i)) + "_" + standard_event_dict[event]["strand"]):0 for i in included_jl}
+            standard_event_dict[event]["included_junction_counts"].update( {(chrom + "_" + str(i) + "_" + strand):0 for i in included_unique_exon_ol_eij})
+            standard_event_dict[event]["excluded_junction_counts"].update( {(chrom + "_" + str(i) + "_" + strand):0 for i in excluded_unique_exon_ol_eij})
 
-        standard_event_dict[event]["included_jn_count"] = str(len(included_jl)) ##confusing terminology! this is just the number of junctions
-        standard_event_dict[event]["excluded_jn_count"] = str(len(excluded_jl))
+        else:
+
+            standard_event_dict[event]["included_ei_junctions"] = []
+            standard_event_dict[event]["excluded_ei_junctions"] = []
+
+
+        if not suppress_unique_edges:
+
+            included_unique_edges = list(set([j for i in standard_event_dict[event]["included_exons"] for j in i]) - set([j for i in standard_event_dict[event]["excluded_exons"] for j in i]))
+            excluded_unique_edges = list(set([j for i in standard_event_dict[event]["excluded_exons"] for j in i]) - set([j for i in standard_event_dict[event]["included_exons"] for j in i]))
+
+            standard_event_dict[event]["included_unique_edges"] = included_unique_edges[:]
+            standard_event_dict[event]["excluded_unique_edges"] = excluded_unique_edges[:]
+
+
+            if no_ends:
+
+                if (standard_event_dict[event]["event_type"] in ["AF", "MF", "CF"] and standard_event_dict[event]["strand"] == "+") or (standard_event_dict[event]["event_type"] in ["AL", "ML", "CL"] and standard_event_dict[event]["strand"] == "-"):
+
+                    try:
+                        del included_unique_edges[included_unique_edges.index(standard_event_dict[event]["included_exons"][0][0])]
+                        del excluded_unique_edges[excluded_unique_edges.index(standard_event_dict[event]["excluded_exons"][0][0])]
+                    except ValueError:
+                        print "Possible cross-mapping failure or other event-type definition failure - no unique edges found for at least one form in event", event
+                        print included_unique_edges
+                        print excluded_unique_edges
+                        print standard_event_dict[event]
+
+
+                if (standard_event_dict[event]["event_type"] in ["AF", "MF", "CF"] and standard_event_dict[event]["strand"] == "-") or (standard_event_dict[event]["event_type"] in ["AL", "ML", "CL"] and standard_event_dict[event]["strand"] == "+"):
+
+                    try:
+                        del included_unique_edges[included_unique_edges.index(standard_event_dict[event]["included_exons"][-1][-1])]
+                        del excluded_unique_edges[excluded_unique_edges.index(standard_event_dict[event]["excluded_exons"][-1][-1])]
+                    except ValueError:
+                        print "Possible cross-mapping failure or other event-type definition failure - no unique edges found for at least one form in event", event
+                        print included_unique_edges
+                        print excluded_unique_edges
+                        print standard_event_dict[event]
+
+            standard_event_dict[event]["included_junction_counts"].update( {(chrom + "_" + str(i) + "_" + strand):0 for i in included_unique_edges})
+            standard_event_dict[event]["excluded_junction_counts"].update( {(chrom + "_" + str(i) + "_" + strand):0 for i in excluded_unique_edges})
+
+
+
+    ##Use RI/MR events whose included form exons are found in other events to supply additional EIJ for span information.  This is useful when high intron coverage can lead to spurious exons that will otherwise be mis-quantified
+
+    if inform_using_ri_events: 
+
+        ri_mr_incl_exons = {}
+
+        for event in standard_event_dict:
+
+            if standard_event_dict[event]["event_type"] in ["RI", "MR"]:
+
+                chrom = standard_event_dict[event]["chrom"]
+                strand = standard_event_dict[event]["strand"]
+
+                entry = chrom + "_" + "_".join(map(str, standard_event_dict[event]["included_exons"][0])) + "_" + strand
+
+                ri_mr_incl_exons.setdefault(entry, []).append(event)
+
+
+        for event in standard_event_dict:
+
+            if standard_event_dict[event]["event_type"] not in ["RI", "MR"]:
+
+                chrom = standard_event_dict[event]["chrom"]
+                strand = standard_event_dict[event]["strand"]
+
+                for form in ["included", "excluded"]:
+
+                    other_form = "excluded" if form == "included" else "included"
+
+                    for exon in standard_event_dict[event][form + "_exons"]:
+
+                        key = chrom + "_" + "_".join(map(str, exon)) + "_" + strand
+
+                        if key in ri_mr_incl_exons:
+
+                            for ri_mr_event in ri_mr_incl_exons[key]:
+
+                                for eij in standard_event_dict[ri_mr_event]["included_ei_junctions"]:
+
+                                    start = int(eij)
+                                    end = int(eij)
+
+                                    if not position_contained(standard_event_dict[event][other_form + "_exons"], start)[0] and not position_contained(standard_event_dict[event][other_form + "_exons"], end)[0]:
+
+                                        standard_event_dict[event][form + "_junction_counts"].update(standard_event_dict[ri_mr_event]["included_junction_counts"])
+
+                                        standard_event_dict[event][form + "_ei_junctions"] += [int(i) for i in standard_event_dict[ri_mr_event]["included_ei_junctions"] if int(i) not in standard_event_dict[event][form + "_ei_junctions"]]
+
+    for event in standard_event_dict:
+
+        standard_event_dict[event]["included_jn_count"] = str(len(standard_event_dict[event]["included_junction_counts"])) ##confusing terminology! this is just the number of junctions
+        standard_event_dict[event]["excluded_jn_count"] = str(len(standard_event_dict[event]["excluded_junction_counts"]))
+
+
+
+
+
+
+
+def complete_event_dict_chrom_strand(standard_event_dict, suppress_unique_edges = False, suppress_eij = False, no_ends = True, inform_using_ri_events = True):
+
+    '''
+        Sorts event exons, infers junctions - necessary to complete event dict
+
+        Now adds EIJ if add_eij is set - restricted to EIJ that overlap an exon in the other form
+
+        Now adds form-unique exon edges
+    '''
+
+    for chrom in standard_event_dict:
+
+        for strand in standard_event_dict[chrom]:
+
+            for event in standard_event_dict[chrom][strand]:
+
+                chrom = standard_event_dict[chrom][strand][event]["chrom"]
+                strand = standard_event_dict[chrom][strand][event]["strand"]
+
+                included_exons = [map(str, i) for i in sorted([map(int, i) for i in standard_event_dict[chrom][strand][event]["included_exons"]], key=itemgetter(0))]
+                standard_event_dict[chrom][strand][event]["included_exons"] = copy.deepcopy(included_exons)
+
+                excluded_exons = [map(str,i) for i in sorted([map(int, i) for i in standard_event_dict[chrom][strand][event]["excluded_exons"]], key=itemgetter(0))]
+                standard_event_dict[chrom][strand][event]["excluded_exons"] = copy.deepcopy(excluded_exons)
+
+                included_jl = get_junctions(included_exons)
+                excluded_jl = get_junctions(excluded_exons)
+
+                standard_event_dict[chrom][strand][event]["included_junctions"] = included_jl
+                standard_event_dict[chrom][strand][event]["excluded_junctions"] = excluded_jl
+
+                standard_event_dict[chrom][strand][event]["included_junction_counts"] = {(chrom + "_" + "_".join(map(str,i)) + "_" + strand):0 for i in included_jl}
+                standard_event_dict[chrom][strand][event]["excluded_junction_counts"] = {(chrom + "_" + "_".join(map(str,i)) + "_" + strand):0 for i in excluded_jl}
+                standard_event_dict[chrom][strand][event]["included_count"] = 0
+                standard_event_dict[chrom][strand][event]["excluded_count"] = 0
+
+                if (not suppress_eij) or standard_event_dict[chrom][strand][event]["event_type"] in ["RI", "MR"]:
+
+                    included_unique_exon_ol_eij, excluded_unique_exon_ol_eij = get_exon_overlapping_ei_junctions_list(included_exons, excluded_exons)
+
+                    standard_event_dict[chrom][strand][event]["included_ei_junctions"] = included_unique_exon_ol_eij
+                    standard_event_dict[chrom][strand][event]["excluded_ei_junctions"] = excluded_unique_exon_ol_eij
+
+                    standard_event_dict[chrom][strand][event]["included_junction_counts"].update( {(chrom + "_" + str(i) + "_" + strand):0 for i in included_unique_exon_ol_eij})
+                    standard_event_dict[chrom][strand][event]["excluded_junction_counts"].update( {(chrom + "_" + str(i) + "_" + strand):0 for i in excluded_unique_exon_ol_eij})
+
+                else:
+
+                    standard_event_dict[chrom][strand][event]["included_ei_junctions"] = []
+                    standard_event_dict[chrom][strand][event]["excluded_ei_junctions"] = []
+
+
+                if not suppress_unique_edges:
+
+                    included_unique_edges = list(set([j for i in standard_event_dict[chrom][strand][event]["included_exons"] for j in i]) - set([j for i in standard_event_dict[chrom][strand][event]["excluded_exons"] for j in i]))
+                    excluded_unique_edges = list(set([j for i in standard_event_dict[chrom][strand][event]["excluded_exons"] for j in i]) - set([j for i in standard_event_dict[chrom][strand][event]["included_exons"] for j in i]))
+
+                    standard_event_dict[chrom][strand][event]["included_unique_edges"] = included_unique_edges[:]
+                    standard_event_dict[chrom][strand][event]["excluded_unique_edges"] = excluded_unique_edges[:]
+
+
+                    if no_ends:
+
+                        if (standard_event_dict[chrom][strand][event]["event_type"] in ["AF", "MF", "CF"] and standard_event_dict[chrom][strand][event]["strand"] == "+") or (standard_event_dict[chrom][strand][event]["event_type"] in ["AL", "ML", "CL"] and standard_event_dict[chrom][strand][event]["strand"] == "-"):
+
+                            try:
+                                del included_unique_edges[included_unique_edges.index(standard_event_dict[chrom][strand][event]["included_exons"][0][0])]
+                                del excluded_unique_edges[excluded_unique_edges.index(standard_event_dict[chrom][strand][event]["excluded_exons"][0][0])]
+                            except ValueError:
+                                print "Possible cross-mapping failure or other event-type definition failure - no unique edges found for at least one form in event", event
+                                print included_unique_edges
+                                print excluded_unique_edges
+                                print standard_event_dict[chrom][strand][event]
+
+
+                        if (standard_event_dict[chrom][strand][event]["event_type"] in ["AF", "MF", "CF"] and standard_event_dict[chrom][strand][event]["strand"] == "-") or (standard_event_dict[chrom][strand][event]["event_type"] in ["AL", "ML", "CL"] and standard_event_dict[chrom][strand][event]["strand"] == "+"):
+
+                            try:
+                                del included_unique_edges[included_unique_edges.index(standard_event_dict[chrom][strand][event]["included_exons"][-1][-1])]
+                                del excluded_unique_edges[excluded_unique_edges.index(standard_event_dict[chrom][strand][event]["excluded_exons"][-1][-1])]
+                            except ValueError:
+                                print "Possible cross-mapping failure or other event-type definition failure - no unique edges found for at least one form in event", event
+                                print included_unique_edges
+                                print excluded_unique_edges
+                                print standard_event_dict[chrom][strand][event]
+
+                    standard_event_dict[chrom][strand][event]["included_junction_counts"].update( {(chrom + "_" + str(i) + "_" + strand):0 for i in included_unique_edges})
+                    standard_event_dict[chrom][strand][event]["excluded_junction_counts"].update( {(chrom + "_" + str(i) + "_" + strand):0 for i in excluded_unique_edges})
+
+
+
+            ##Use RI/MR events whose included form exons are found in other events to supply additional EIJ for span information.  This is useful when high intron coverage can lead to spurious exons that will otherwise be mis-quantified
+
+            if inform_using_ri_events: 
+
+                ri_mr_incl_exons = {}
+
+                for event in standard_event_dict[chrom][strand]:
+
+                    if standard_event_dict[chrom][strand][event]["event_type"] in ["RI", "MR"]:
+
+                        chrom = standard_event_dict[chrom][strand][event]["chrom"]
+                        strand = standard_event_dict[chrom][strand][event]["strand"]
+
+                        entry = chrom + "_" + "_".join(map(str, standard_event_dict[chrom][strand][event]["included_exons"][0])) + "_" + strand
+
+                        ri_mr_incl_exons.setdefault(entry, []).append(event)
+
+
+                for event in standard_event_dict[chrom][strand]:
+
+                    if standard_event_dict[chrom][strand][event]["event_type"] not in ["RI", "MR"]:
+
+                        chrom = standard_event_dict[chrom][strand][event]["chrom"]
+                        strand = standard_event_dict[chrom][strand][event]["strand"]
+
+                        for form in ["included", "excluded"]:
+
+                            other_form = "excluded" if form == "included" else "included"
+
+                            for exon in standard_event_dict[chrom][strand][event][form + "_exons"]:
+
+                                key = chrom + "_" + "_".join(map(str, exon)) + "_" + strand
+
+                                if key in ri_mr_incl_exons:
+
+                                    for ri_mr_event in ri_mr_incl_exons[key]:
+
+                                        for eij in standard_event_dict[chrom][strand][ri_mr_event]["included_ei_junctions"]:
+
+                                            start = int(eij)
+                                            end = int(eij)
+
+                                            if not position_contained(standard_event_dict[chrom][strand][event][other_form + "_exons"], start)[0] and not position_contained(standard_event_dict[chrom][strand][event][other_form + "_exons"], end)[0]:
+
+                                                standard_event_dict[chrom][strand][event][form + "_junction_counts"].update(standard_event_dict[chrom][strand][ri_mr_event]["included_junction_counts"])
+
+                                                standard_event_dict[chrom][strand][event][form + "_ei_junctions"] += [int(i) for i in standard_event_dict[chrom][strand][ri_mr_event]["included_ei_junctions"] if int(i) not in standard_event_dict[chrom][strand][event][form + "_ei_junctions"]]
+
+            for event in standard_event_dict[chrom][strand]:
+
+                standard_event_dict[chrom][strand][event]["included_jn_count"] = str(len(standard_event_dict[chrom][strand][event]["included_junction_counts"])) ##confusing terminology! this is just the number of junctions
+                standard_event_dict[chrom][strand][event]["excluded_jn_count"] = str(len(standard_event_dict[chrom][strand][event]["excluded_junction_counts"]))
+
+
+
+
+
 
 
 
@@ -538,6 +1049,14 @@ def check_integrity(event_dict):
             if (len(event_dict[event]["included_exons"]) < 2 and len(event_dict[event]["excluded_exons"]) < 2) or len(event_dict[event]["included_exons"]) < 1 or len(event_dict[event]["excluded_exons"]) < 1:
 
                 incomplete_events.append(event)
+
+        elif event_dict[event]["event_type"] == "MR":
+
+            if len(event_dict[event]["included_exons"]) != 1 or len(event_dict[event]["excluded_exons"]) < 3:
+
+                incomplete_events.append(event)
+
+
 
 
     for event in incomplete_events:
@@ -648,6 +1167,41 @@ def generate_standard_transcript_dict(transcript_gtf_filename, ccds = False, fea
     gtf_file.close()
 
     return standard_transcript_dict
+
+
+def get_transcript_junction_distances(standard_transcript_dict):
+
+    junction_distances = {}
+
+
+    for transcript in standard_transcript_dict:
+
+        chrom = standard_transcript_dict[transcript]["chrom"]
+        strand = standard_transcript_dict[transcript]["strand"]
+        junction_distances[transcript] = {}
+
+        for i, exon in enumerate(standard_transcript_dict[transcript]["exons"]):
+
+            if i < len(standard_transcript_dict[transcript]["exons"]) - 1:
+
+                junction = chrom + "_" + str(exon[1]) + "_" + str(standard_transcript_dict[transcript]["exons"][i+1][0]) + "_" + strand
+                left_distance =  calc_length_exon_list(standard_transcript_dict[transcript]["exons"][0:i+1])
+                right_distance = calc_length_exon_list(standard_transcript_dict[transcript]["exons"][i+1:])
+
+                junction_distances[transcript].setdefault(junction, {"three_prime": set(), "five_prime": set()})
+
+                if strand == "+":
+
+                    junction_distances[transcript][junction]["five_prime"].add(left_distance)
+                    junction_distances[transcript][junction]["three_prime"].add(right_distance)
+
+                elif strand == "-":
+
+                    junction_distances[transcript][junction]["five_prime"].add(right_distance)
+                    junction_distances[transcript][junction]["three_prime"].add(left_distance)
+
+
+    return junction_distances
 
 
 
@@ -767,7 +1321,9 @@ def collapse_redundant_junction_events(standard_event_dict, outdir):
 
 
     '''
-        Searches for events with identical included+excluded form junction sets (happens a lot with AF events (probably AL too)), collapses to a single event
+        Searches for events with identical included+excluded form junction sets (happens a lot with AF events (probably AL too)), collapses to a single event.
+
+        Assumes complete_event_dict has been run
     '''
 
     event_type_clash = open(outdir + "/event_type_clash.tsv", 'w')
@@ -776,37 +1332,9 @@ def collapse_redundant_junction_events(standard_event_dict, outdir):
 
     for event in standard_event_dict:
 
-        included_exons = [map(str, i) for i in sorted(standard_event_dict[event]["included_exons"], key=itemgetter(0))]
-        standard_event_dict[event]["included_exons"] = copy.deepcopy(included_exons)
 
-        excluded_exons = [map(str,i) for i in sorted(standard_event_dict[event]["excluded_exons"], key=itemgetter(0))]
-        standard_event_dict[event]["excluded_exons"] = copy.deepcopy(excluded_exons)
-
-        included_jl = get_junctions(included_exons)
-        excluded_jl = get_junctions(excluded_exons)
-
-        standard_event_dict[event]["included_junctions"] = copy.deepcopy(included_jl)
-        standard_event_dict[event]["excluded_junctions"] = copy.deepcopy(excluded_jl)
-
-        standard_event_dict[event]["included_junction_counts"] = {(standard_event_dict[event]["chrom"] + "_" + "_".join(map(str,i)) + "_" + standard_event_dict[event]["strand"]):0 for i in included_jl} #this is the number of reads aligning to these junctions
-        standard_event_dict[event]["excluded_junction_counts"] = {(standard_event_dict[event]["chrom"] + "_" + "_".join(map(str,i)) + "_" + standard_event_dict[event]["strand"]):0 for i in excluded_jl}
-
-        if standard_event_dict[event]["event_type"] == "RI":  
-
-            chrom = standard_event_dict[event]["chrom"]
-            strand = standard_event_dict[event]["strand"]
-            start = str(int(standard_event_dict[event]["excluded_junctions"][0][0]) + 1)
-            end = str(int(standard_event_dict[event]["excluded_junctions"][0][1]) - 1)
-
-            standard_event_dict[event]["included_junctions"] = included_jl = [[int(start), int(start) + 1], [int(end) - 1, int(end)]]
-            standard_event_dict[event]["included_junction_counts"] = {(standard_event_dict[event]["chrom"] + "_" + "_".join(map(str,i)) + "_" + standard_event_dict[event]["strand"]):0 for i in included_jl}
-
-        standard_event_dict[event]["included_jn_count"] = str(len(included_jl)) ##confusing terminology! this is just the number of junctions
-        standard_event_dict[event]["excluded_jn_count"] = str(len(excluded_jl))
-
-
-        flat_joined_included_jl = "_".join([str(i) for j in included_jl for i in j])
-        flat_joined_excluded_jl = "_".join([str(i) for j in excluded_jl for i in j])
+        flat_joined_included_jl = "_".join([str(i) for j in standard_event_dict[event]["included_junctions"] for i in j])
+        flat_joined_excluded_jl = "_".join([str(i) for j in standard_event_dict[event]["excluded_junctions"] for i in j])
 
         chrom = standard_event_dict[event]["chrom"]
         strand = standard_event_dict[event]["strand"]
@@ -897,6 +1425,58 @@ def generate_junction_indexed_event_dict(standard_event_dict):
 
 
 
+
+def generate_junction_indexed_event_dict_chrom_strand(standard_event_dict):
+
+    '''
+        Returns dictionary where splice junctions (specified by chrom, strand, and inner coordinates of flanking exons) are keys which point to lists of matching transcripts
+
+        Takes the transcript dictionary as input.
+
+        This facilitates the matching of CDS without needing prior gene information.
+
+    '''
+
+    junction_dict = {}
+
+    for chrom in standard_event_dict:
+
+        junction_dict.setdefault(chrom, {"+": {}, "-": {}})
+
+        for strand in standard_event_dict[chrom]:
+
+            for event in standard_event_dict[chrom][strand]:
+
+                included_jl = standard_event_dict[chrom][strand][event]["included_junctions"] 
+                excluded_jl = standard_event_dict[chrom][strand][event]["excluded_junctions"] 
+
+                for junction in included_jl:
+
+                    junction_key = standard_event_dict[chrom][strand][event]["chrom"] + "_" + "_".join(map(str,junction)) + "_" + standard_event_dict[chrom][strand][event]["strand"]
+
+                    if junction_key not in junction_dict[chrom][strand]:
+
+                        junction_dict[chrom][strand][junction_key] = [event + "_" + "included"]
+
+
+                    else:
+                        junction_dict[chrom][strand][junction_key].append(event + "_" + "included")
+
+                for junction in excluded_jl:
+
+                    junction_key = standard_event_dict[chrom][strand][event]["chrom"] + "_" + "_".join(map(str,junction)) + "_" + standard_event_dict[chrom][strand][event]["strand"]
+
+                    if junction_key not in junction_dict[chrom][strand]:
+
+                        junction_dict[chrom][strand][junction_key] = [event + "_" + "excluded"]
+
+                    else:
+                        junction_dict[chrom][strand][junction_key].append(event + "_" + "excluded")
+
+    return junction_dict
+
+
+
 def filter_overlapping_se_alt_donacc_events(standard_event_dict, junction_dict):
 
     events_to_filter = []
@@ -978,7 +1558,8 @@ def rename_events(standard_event_dict):
     "UL": 1,
     "AT": 1,
     "AP": 1,
-    "AB": 1
+    "AB": 1,
+    "MR": 1
     }
     
     new_event_dict = {}
@@ -1133,11 +1714,11 @@ def output_transcript_gtf(standard_transcript_dict, outdir, name = "splice_lib_t
             except KeyError:
                 sys.exit("Tried to output a transcript gtf with no gene name. Exiting . . . ")
 
-            file.write("\t".join([chrom, "splice_lib_transcript", "transcript", start, end, ".", strand, ".", "gene_name " + '"' + gene + '"; transcript_id ' + '"' + transcript + '";']) + "\n")
+            file.write("\t".join([chrom, "splice_lib_transcript", "transcript", start, end, ".", strand, ".", "gene_name " + '"' + gene + '"; gene_id ' + '"' + gene +  '"; transcript_id ' + '"' + transcript + '";']) + "\n")
 
             for exon in standard_transcript_dict[transcript]["exons"]:
 
                 start = str(exon[0])
                 end = str(exon[1])
 
-                file.write("\t".join([chrom, "splice_lib_transcript", "exon", start, end, ".", strand, ".", "gene_name " + '"' + gene + '"; transcript_id ' + '"' + transcript + '";']) + "\n")
+                file.write("\t".join([chrom, "splice_lib_transcript", "exon", start, end, ".", strand, ".", "gene_name " + '"' + gene + '"; gene_id ' + '"' + gene + '"; transcript_id ' + '"' + transcript + '";']) + "\n")
