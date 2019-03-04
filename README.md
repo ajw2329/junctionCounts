@@ -64,7 +64,7 @@ optional arguments:
 
 ## Benchmarking
 
-### rt-PCT
+### rt-PCR
 
 ![Screenshot](combined_jc_vs_rtpcr_dpsi.png)
 ![Screenshot](combined_jc_vs_rtpcr_psi.png)
