@@ -383,6 +383,7 @@ def classify_event(pre_common, post_common, tx1_unique, tx2_unique, form_1_exons
 
         form_1_exons = copy.deepcopy(form_1_exons)[0:-1]
         form_2_exons = copy.deepcopy(form_2_exons)[0:-1]
+
         max_left = max(form_1_exons[0][0], form_2_exons[0][0])
 
         form_1_exons[0][0] = max_left
@@ -403,7 +404,6 @@ def classify_event(pre_common, post_common, tx1_unique, tx2_unique, form_1_exons
 
             form_1_exons[-1][-1] = min_right
             form_2_exons[-1][-1] = min_right
-
 
     if "universal_left" not in pre_common:
 
@@ -442,6 +442,7 @@ def classify_event(pre_common, post_common, tx1_unique, tx2_unique, form_1_exons
                 elif len(included_exons) == 2 and len(excluded_exons) == 2 and len(included_unique) == 1 and len(excluded_unique) == 1:
 
                     if int(included_unique[0].split("_")[0]) == included_exons[0][1]:
+
                         if strand == "+":
                             event_type = "A5"
                         elif strand == "-":
@@ -455,6 +456,10 @@ def classify_event(pre_common, post_common, tx1_unique, tx2_unique, form_1_exons
                 elif len(included_exons) == 1 and len(excluded_exons) == 2:
 
                     event_type = "RI"
+
+                elif len(included_exons) == 1 and len(excluded_exons) > 2:
+
+                    event_type = "MR"
 
                 else:
                     event_type = "CO" ## for complex
@@ -548,7 +553,14 @@ def classify_event(pre_common, post_common, tx1_unique, tx2_unique, form_1_exons
             elif strand == "-":
                 event_type = "CL"
 
-    outdict = {"included_exons": included_exons, "excluded_exons": excluded_exons, "event_type": event_type, "included_form_transcript": included_form_transcript, "excluded_form_transcript": excluded_form_transcript, "included_unique": included_unique, "excluded_unique": excluded_unique}
+    outdict = {"included_exons": included_exons, "excluded_exons": excluded_exons, "event_type": event_type, "included_form_transcript": included_form_transcript, "excluded_form_transcript": excluded_form_transcript, "included_unique": included_unique, "excluded_unique": excluded_unique, "strand": strand}
+
+
+    #for i in ["args", ",".join(map(str,pre_common)), ",".join(map(str, post_common)), ",".join(map(str, tx1_unique)), ",".join(map(str, tx2_unique)), form_1_exons, form_2_exons, strand, tx1, tx2]:
+
+    #    print >> sys.stderr, i
+
+    #print >> sys.stderr, outdict
 
     if event_type == "WHOOPS":
          print outdict
@@ -771,7 +783,7 @@ def separate_jc_friendly_events(standard_event_dict):
 
     for event in standard_event_dict:
 
-        if len(standard_event_dict[event]["included_junctions"]) == 0 or len(standard_event_dict[event]["excluded_junctions"]) == 0:
+        if (len(standard_event_dict[event]["included_junctions"]) == 0 and len(standard_event_dict[event]["included_ei_junctions"]) == 0) or (len(standard_event_dict[event]["excluded_junctions"]) == 0 and len(standard_event_dict[event]["excluded_ei_junctions"]) == 0):
 
             unfriendly[event] = copy.deepcopy(standard_event_dict[event])
 
@@ -897,6 +909,7 @@ def main(args, transcript_dict = None):
 
     print "{0}: {1} seconds elapsed. RI event identification complete.  Now cleaning/filtering events.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))    
 
+    splice_lib.complete_event_dict(standard_event_dict, suppress_unique_edges = True, suppress_eij = False, no_ends = True, inform_using_ri_events = True)
     splice_lib.collapse_redundant_junction_events(standard_event_dict, outdir)
 
     #splice_lib.complete_event_dict(standard_event_dict)
@@ -952,12 +965,12 @@ def main(args, transcript_dict = None):
 
     event_type_counts = splice_lib.assess_event_types(standard_event_dict)
 
-    print "{0}: {1} seconds elapsed. Event type counts tabulated.  Found {2} total events with {3} MS, {4} SE, {5} A3, {6} A5, {7} AF, {8} AL, {9} MF, {10} ML, {11} CF, {12} CL, {13} UF, {14} UL, {15} AT, {16} AP, {17} RI, {18} MX, {19} CO and {20} AB events.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)), str(event_type_counts["total"]), str(event_type_counts["MS"]), str(event_type_counts["SE"]), str(event_type_counts["A3"]), str(event_type_counts["A5"]), str(event_type_counts["AF"]), str(event_type_counts["AL"]), str(event_type_counts["MF"]), str(event_type_counts["ML"]), str(event_type_counts["CF"]), str(event_type_counts["CL"]), str(event_type_counts["UF"]), str(event_type_counts["UL"]), str(event_type_counts["AT"]), str(event_type_counts["AP"]),  str(event_type_counts["RI"]), str(event_type_counts["MX"]),  str(event_type_counts["CO"]), str(event_type_counts["AB"]))
+    print "{0}: {1} seconds elapsed. Event type counts tabulated.  Found {2} total events with {3} MS, {4} SE, {5} A3, {6} A5, {7} AF, {8} AL, {9} MF, {10} ML, {11} CF, {12} CL, {13} UF, {14} UL, {15} AT, {16} AP, {17} RI, {18} MX, {19} CO, {20} AB and {21} MR events.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)), str(event_type_counts["total"]), str(event_type_counts["MS"]), str(event_type_counts["SE"]), str(event_type_counts["A3"]), str(event_type_counts["A5"]), str(event_type_counts["AF"]), str(event_type_counts["AL"]), str(event_type_counts["MF"]), str(event_type_counts["ML"]), str(event_type_counts["CF"]), str(event_type_counts["CL"]), str(event_type_counts["UF"]), str(event_type_counts["UL"]), str(event_type_counts["AT"]), str(event_type_counts["AP"]),  str(event_type_counts["RI"]), str(event_type_counts["MX"]),  str(event_type_counts["CO"]), str(event_type_counts["AB"]), str(event_type_counts["MR"]))
 
     print "{0}: {1} seconds elapsed. infer_pairwise_events complete.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
     print "Ceci n'est pas un algorithme bioinformatique."
 
-    return standard_event_dict
+    return friendly
 
 
 if __name__ ==     '__main__':
