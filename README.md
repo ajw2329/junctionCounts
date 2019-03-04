@@ -6,7 +6,7 @@ junctinCounts is a tool intended to identify and quantify binary alternative spl
 
 ## Description
 
-![Screenshot](event_schematic.png)
+![Screenshot](./figures/event_schematic.png)
 
 ## Basic usage
 
@@ -66,7 +66,7 @@ optional arguments:
 
 ### rt-PCR
 
-![Screenshot](combined_jc_vs_rtpcr_dpsi.png)
-![Screenshot](combined_jc_vs_rtpcr_psi.png)
+![Screenshot](./figures/combined_jc_vs_rtpcr_dpsi.png)
+![Screenshot](./figures/combined_jc_vs_rtpcr_psi.png)
 
 ## Help statement
