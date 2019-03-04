@@ -6,7 +6,6 @@ import copy
 import subprocess
 import pickle
 import gzip
-import uuid
 from datetime import datetime
 import time
 import numpy as np
@@ -685,7 +684,7 @@ def max_jnc_gene_dict(event_ioe, standard_event_dict):
 
 
 
-def calc_psi(standard_event_dict, outdir, sample_name, gzipped, randomstring, gene_jc_dict, suppress_output, bootstrap_num = "NA", filename_addendum = "", file_write_mode = "w", header = True):
+def calc_psi(standard_event_dict, outdir, sample_name, gzipped, gene_jc_dict, suppress_output, bootstrap_num = "NA", filename_addendum = "", file_write_mode = "w", header = True):
 
 	'''
 		Calculates PSI values for all events, writes tab-separated outfile containing:
@@ -699,9 +698,9 @@ def calc_psi(standard_event_dict, outdir, sample_name, gzipped, randomstring, ge
 	if not suppress_output:
 
 		if gzipped:
-			count_psi_outfile = gzip.open(outdir + "/" + sample_name + "_" + randomstring + "_" + "count_psi_outfile" + filename_addendum + ".tsv.gz", file_write_mode + 'b')	
+			count_psi_outfile = gzip.open(outdir + "/" + sample_name + "_" + "count_psi_outfile" + filename_addendum + ".tsv.gz", file_write_mode + 'b')	
 		else:
-			count_psi_outfile = open(outdir + "/" + sample_name + "_" + randomstring + "_" + "count_psi_outfile" + filename_addendum + ".tsv", file_write_mode)
+			count_psi_outfile = open(outdir + "/" + sample_name  + "_" + "count_psi_outfile" + filename_addendum + ".tsv", file_write_mode)
 
 		if header:
 
@@ -862,11 +861,9 @@ def main(args, event_dict = None):
 
 			sys.exit("--calc_gene_frac set without passing IOE file to --event_ioe.  Exiting . . . ")
 
-	randomstring = str(uuid.uuid4().hex)  ###for filename uniqueness in case of multiple overlapping runs with same sample name
-
 	subprocess.call("mkdir -p " + output_directory, shell = True)
 
-	print "{0}: {2} seconds elapsed. Arguments parsed.  Assigned random string {1} to this run as a unique identifier for output files. Now importing event GTF file.".format(str(datetime.now().replace(microsecond = 0)), randomstring, str(round(time.time() - start_time, 1)))
+	print "{0}: {1} seconds elapsed. Arguments parsed. Now importing event GTF file.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
 
 	##Generate event dict
 
@@ -940,7 +937,7 @@ def main(args, event_dict = None):
 		gene_jc_dict = None
 		print "{0}: {1} seconds elapsed Junction counting complete.  Skipping gene fraction calculation. Calculating PSI values and writing output file.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
 
-	calc_psi(standard_event_dict, output_directory, sample_name, gzipped, randomstring, gene_jc_dict, suppress_output)
+	calc_psi(standard_event_dict, output_directory, sample_name, gzipped, gene_jc_dict, suppress_output)
 
 	print "{0}: {1} seconds elapsed. File output complete.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
 
@@ -967,7 +964,7 @@ def main(args, event_dict = None):
 			if not args.enable_edge_use:
 				get_exon_edge_counts(junction_only_count_dict_bootstrap, junction_indexed_event_dict, standard_event_dict_bootstrap)
 
-			calc_psi(standard_event_dict_bootstrap, output_directory, sample_name, gzipped, randomstring, gene_jc_dict, suppress_output, bootstrap_num = i, filename_addendum = "_bootstraps", file_write_mode = "a", header = True if i == 0 else False)
+			calc_psi(standard_event_dict_bootstrap, output_directory, sample_name, gzipped, gene_jc_dict, suppress_output, bootstrap_num = i, filename_addendum = "_bootstraps", file_write_mode = "a", header = True if i == 0 else False)
 
 
 
