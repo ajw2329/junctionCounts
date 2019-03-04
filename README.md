@@ -104,6 +104,7 @@ python2.7 /path/to/infer_pairwise_events.py --transcript_gtf /path/to/transcript
 
 `splice_lib_events.gff3`
 
+|------|------------------|------------|-----------|-----------|---|---|---|----------------------------------------------------------|
 | chr3 | splice_lib_event | gene       | 52321872  | 52325127  | . | + | . | ID=SE.0006314;Name=SE.0006314                            |
 | chr3 | splice_lib_event | transcript | 52321872  | 52325127  | . | + | . | ID=SE.0006314_included;Parent=SE.0006314                 |
 | chr3 | splice_lib_event | exon       | 52321872  | 52321892  | . | + | . | ID=exon:SE.0006314_included:1;Parent=SE.0006314_included |
