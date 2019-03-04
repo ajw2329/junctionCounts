@@ -1,0 +1,318 @@
+---
+title: "Untitled"
+author: "Andrew Wallace"
+date: "February 26, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+```{r}
+
+zhang_sample_info <- read.table("/home/andrew/projects/daily_log/02262019/zhang_2014_samples.tsv",
+                          sep = "\t",
+                          stringsAsFactors = FALSE,
+                          header = TRUE)
+
+
+zhang_all_counts <- read.table("/home/andrew/projects/daily_log/02262019/zhang_all_junctioncounts_rmdup.tsv",
+                         sep = "\t",
+                         stringsAsFactors = FALSE,
+                         header = TRUE) %>% 
+  left_join(zhang_sample_info, by = "sample_name")
+
+zhang_majiq_info <- read.table("/home/andrew/projects/daily_log/02262019/zhang_majiq_file_with_events.tsv",
+                         sep = "\t",
+                         stringsAsFactors = FALSE,
+                         header = TRUE) %>%
+  filter(!grepl(",", events)) %>%
+  dplyr::rename(event_id = events)
+
+
+
+
+
+shen_sample_info <- read.table("/home/andrew/projects/daily_log/02262019/shen_2014_samples.tsv",
+                          sep = "\t",
+                          stringsAsFactors = FALSE,
+                          header = TRUE) %>% 
+  dplyr::rename(condition = cell_type)
+
+
+shen_all_counts <- read.table("/home/andrew/projects/daily_log/02262019/shen_all_junctioncounts_rmdup.tsv",
+                         sep = "\t",
+                         stringsAsFactors = FALSE,
+                         header = TRUE) %>% 
+  left_join(shen_sample_info, by = "sample_name")
+
+shen_rmats_info <- read.table("/home/andrew/projects/daily_log/02262019/rmats_file_events.tsv",
+                         sep = "\t",
+                         stringsAsFactors = FALSE,
+                         header = TRUE) %>%
+  filter(!grepl(",", events)) %>%
+  dplyr::rename(event_id = events)
+
+```
+
+
+```{r}
+
+zhang_events_full_span <- zhang_all_counts %>% 
+                      mutate(min_jc_row = pmap_dbl(list(x = min_IJC, y = min_SJC), function(x,y) max(x,y))) %>%
+                      group_by(event_id,condition) %>% 
+                      summarize(min_PSI_lo = min(PSI_lo), max_PSI_hi = max(PSI_hi), min_jc_condition = min(min_jc_row)) %>% 
+                      ungroup()
+
+
+zhang_all_condition_dpsi_df_list <- list()
+
+ for (comparison in str_split(c("cerebellum,liver"), pattern = ",")) {
+   
+   condition_1 <- zhang_events_full_span %>% 
+   filter(condition == comparison[1]) %>%
+   transmute(event_id = event_id, cond1_min_PSI_lo = min_PSI_lo, cond1_max_PSI_hi = max_PSI_hi, min_jc_cond1 = min_jc_condition)
+   print(nrow(condition_1))
+   
+   condition_2 <- zhang_events_full_span %>% 
+   filter(condition == comparison[2]) %>%
+   transmute(event_id = event_id, cond2_min_PSI_lo = min_PSI_lo, cond2_max_PSI_hi = max_PSI_hi, min_jc_cond2 = min_jc_condition)
+   print(nrow(condition_2))
+   
+   dpsi <- condition_1 %>%
+           left_join(condition_2, by = c("event_id")) %>%
+           mutate(min_dpsi = cond2_min_PSI_lo - cond1_max_PSI_hi, max_dpsi = cond2_max_PSI_hi - cond1_min_PSI_lo, mid_dpsi = (min_dpsi + max_dpsi)/2, span_dpsi = max_dpsi - min_dpsi, comparison = paste0(comparison[1], "_", comparison[2])) %>% 
+           select(event_id, span_dpsi, max_dpsi, min_dpsi, comparison, min_jc_cond1, min_jc_cond2) %>%
+           mutate(min_jc_comparison = pmap_dbl(list(x = min_jc_cond1, y = min_jc_cond2), function(x,y) min(x,y)), inner_dpsi = pmap_dbl(list(x = min_dpsi, y = max_dpsi), function(x,y) ifelse(sign(x) == sign(y), sign(x)*min(abs(x), abs(y)), 0)))
+   
+   zhang_all_condition_dpsi_df_list <- c(zhang_all_condition_dpsi_df_list, list(dpsi))
+   
+
+ }
+
+
+zhang_all_condition_dpsi_df_actual <- do.call(rbind, zhang_all_condition_dpsi_df_list)
+zhang_all_condition_dpsi_df_actual <- zhang_all_condition_dpsi_df_actual %>%
+  mutate(mid_dpsi = (max_dpsi + min_dpsi)/2)
+
+rm(dpsi)
+rm(condition_1)
+rm(condition_2)
+```
+
+
+```{r}
+
+zhang_majiq_jc_joined <- zhang_majiq_info %>% 
+  left_join(select(zhang_all_condition_dpsi_df_actual, 
+                   event_id, 
+                   mid_dpsi, 
+                   inner_dpsi, span_dpsi), 
+            by = "event_id")
+
+zhang_dpsi_r2.value <- cor(zhang_majiq_jc_joined$RTPCR_dPSI_.Liv.Cer., zhang_majiq_jc_joined$mid_dpsi)^2
+
+zhang_dpsi_plot <- zhang_majiq_jc_joined %>% 
+  ggplot(aes(x = RTPCR_dPSI_.Liv.Cer., y = mid_dpsi)) + 
+    geom_point() + 
+    geom_smooth(method = "lm") +
+    theme_bw() + 
+    xlab(expression(paste("RT-PCR ", Delta, Psi))) + 
+    ylab(expression(paste("junctionCounts ", Delta, Psi))) + 
+    annotate("label", x = -0.5, y = 0.7, label = expression(paste("jC RT-PCR: ",R^{2},'=',"0.97"))) + 
+    ggtitle(expression(paste("junctionCounts ",Delta,Psi, "(Liver - Cerebellum) vs RT-PCR ",Delta,Psi)),
+      subtitle = "RNA-seq data from Zhang et al PNAS 2014\nRT-PCR from Vaquero-Garcia et al eLife 2016")
+
+ggsave(plot = zhang_dpsi_plot, filename = "zhang_jc_vs_rtpcr_dpsi.pdf")
+
+
+zhang_majiq_jc_psi <- zhang_majiq_info %>% 
+  left_join(zhang_events_full_span %>% 
+              mutate(cer_psi_mid = (max_PSI_hi + min_PSI_lo)/2) %>% 
+              filter(condition == "cerebellum"),
+            by = "event_id") %>% left_join(zhang_events_full_span %>%
+                                             mutate(liv_psi_mid = (max_PSI_hi + min_PSI_lo)/2) %>%
+                                             filter(condition == "liver"), by = "event_id")
+
+
+zhang_psi_r2.value = cor(c(zhang_majiq_jc_psi$RTPCR_PSI_AvgLiv,zhang_majiq_jc_psi$RTPCR_PSI_AvgCer), c(zhang_majiq_jc_psi$liv_psi_mid,zhang_majiq_jc_psi$cer_psi_mid))^2
+    
+zhang_psi_cor_df <- data.frame(rtpcr_psi = c(zhang_majiq_jc_psi$RTPCR_PSI_AvgLiv,zhang_majiq_jc_psi$RTPCR_PSI_AvgCer), 
+                         jc_psi = c(zhang_majiq_jc_psi$liv_psi_mid,zhang_majiq_jc_psi$cer_psi_mid))
+
+zhang_psi_plot <- zhang_psi_cor_df %>% 
+  ggplot(aes(x = rtpcr_psi, y = jc_psi)) + 
+    geom_point() + 
+    geom_smooth(method = "lm") + 
+    theme_bw() +
+    xlab(expression(paste("RT-PCR ", Psi))) + 
+    ylab(expression(paste("junctionCounts ", Psi))) + 
+    annotate("label", x = 0.25, y = 0.95, label = expression(paste("jC RT-PCR: ",R^{2},'=',"0.95"))) + 
+    ggtitle(expression(paste("junctionCounts ",Psi, " (Liver and Cerebellum) vs RT-PCR ",Psi)),
+      subtitle = "RNA-seq data from Zhang et al PNAS 2014\nRT-PCR from Vaquero-Garcia et al eLife 2016")
+
+ggsave(plot = zhang_psi_plot, filename = "zhang_jc_vs_rtpcr_psi.pdf")
+
+
+```
+
+
+
+```{r}
+shen_events_full_span <- shen_all_counts %>% 
+                      mutate(min_jc_row = pmap_dbl(list(x = min_IJC, y = min_SJC), function(x,y) max(x,y))) %>%
+                      group_by(event_id,condition) %>% 
+                      summarize(min_PSI_lo = min(PSI_lo), max_PSI_hi = max(PSI_hi), min_jc_condition = min(min_jc_row)) %>% 
+                      ungroup()
+
+
+shen_all_condition_dpsi_df_list <- list()
+
+ for (comparison in str_split(c("GS689.Li,PC3E"), pattern = ",")) {
+   
+   condition_1 <- shen_events_full_span %>% 
+   filter(condition == comparison[1]) %>%
+   transmute(event_id = event_id, cond1_min_PSI_lo = min_PSI_lo, cond1_max_PSI_hi = max_PSI_hi, min_jc_cond1 = min_jc_condition)
+   print(nrow(condition_1))
+   
+   condition_2 <- shen_events_full_span %>% 
+   filter(condition == comparison[2]) %>%
+   transmute(event_id = event_id, cond2_min_PSI_lo = min_PSI_lo, cond2_max_PSI_hi = max_PSI_hi, min_jc_cond2 = min_jc_condition)
+   print(nrow(condition_2))
+   
+   dpsi <- condition_1 %>%
+           left_join(condition_2, by = c("event_id")) %>%
+           mutate(min_dpsi = cond2_min_PSI_lo - cond1_max_PSI_hi, max_dpsi = cond2_max_PSI_hi - cond1_min_PSI_lo, mid_dpsi = (min_dpsi + max_dpsi)/2, span_dpsi = max_dpsi - min_dpsi, comparison = paste0(comparison[1], "_", comparison[2])) %>% 
+           select(event_id, span_dpsi, max_dpsi, min_dpsi, comparison, min_jc_cond1, min_jc_cond2) %>%
+           mutate(min_jc_comparison = pmap_dbl(list(x = min_jc_cond1, y = min_jc_cond2), function(x,y) min(x,y)), inner_dpsi = pmap_dbl(list(x = min_dpsi, y = max_dpsi), function(x,y) ifelse(sign(x) == sign(y), sign(x)*min(abs(x), abs(y)), 0)))
+   
+   shen_all_condition_dpsi_df_list <- c(shen_all_condition_dpsi_df_list, list(dpsi))
+   
+
+ }
+
+
+shen_all_condition_dpsi_df_actual <- do.call(rbind, shen_all_condition_dpsi_df_list)
+shen_all_condition_dpsi_df_actual <- shen_all_condition_dpsi_df_actual %>%
+  mutate(mid_dpsi = (max_dpsi + min_dpsi)/2)
+
+```
+
+
+```{r}
+
+shen_rmats_jc_joined <- shen_rmats_info %>% 
+  left_join(select(shen_all_condition_dpsi_df_actual, 
+                   event_id, 
+                   mid_dpsi, 
+                   inner_dpsi, span_dpsi), 
+            by = "event_id") %>% 
+  filter(complete.cases(.))
+
+shen_dpsi_r2.value <- cor(shen_rmats_jc_joined$PC3E...GS689..RT.PCR.Inclusion.Level., shen_rmats_jc_joined$mid_dpsi)^2
+
+shen_dpsi_plot <- shen_rmats_jc_joined %>% 
+  ggplot(aes(x = `PC3E...GS689..RT.PCR.Inclusion.Level.`, y = mid_dpsi)) + 
+    geom_point() + 
+    geom_smooth(method = "lm") +
+    theme_bw() + 
+    xlab(expression(paste("RT-PCR ", Delta, Psi))) + 
+    ylab(expression(paste("junctionCounts ", Delta, Psi))) + 
+    annotate("label", x = -0.25, y = 0.7, label = expression(paste("jC RT-PCR: ",R^{2},'=',"0.92"))) + 
+    ggtitle(expression(paste("junctionCounts ",Delta,Psi, "(PC3E - GS689) vs RT-PCR ",Delta,Psi)),
+      subtitle = "RNA-seq/rt-PCR data from Shen et al PNAS 2014")
+
+ggsave(plot = shen_dpsi_plot, filename = "shen_jc_vs_rtpcr_dpsi.pdf")
+
+
+shen_rmats_jc_psi <- shen_rmats_info %>% 
+  left_join(shen_events_full_span %>% 
+              mutate(GS689_psi_mid = (max_PSI_hi + min_PSI_lo)/2) %>% 
+              filter(condition == "GS689.Li") %>%
+              select(event_id, GS689_psi_mid),
+            by = "event_id") %>% left_join(shen_events_full_span %>%
+                                             mutate(PC3E_psi_mid = (max_PSI_hi + min_PSI_lo)/2) %>%
+                                             filter(condition == "PC3E"), 
+                                             select(event_id, PC3E_psi_mid), by = "event_id") %>%
+  rowwise() %>% 
+  mutate(GS689_rtPCR_mean_PSI = mean(as.numeric(str_split(GS689.RT.PCR.lnclusion.Level, pattern = ",")[[1]])), 
+         PC3E_rtPCR_mean_PSI = mean(as.numeric(str_split(PC3E.RT.PCR.lnclusion.Level, pattern = ",")[[1]]))) %>% 
+  ungroup()
+
+
+shen_psi_r2.value = cor(c(shen_rmats_jc_psi$GS689_rtPCR_mean_PSI,shen_rmats_jc_psi$PC3E_rtPCR_mean_PSI), c(shen_rmats_jc_psi$GS689_psi_mid,shen_rmats_jc_psi$PC3E_psi_mid), use = "complete.obs")^2
+    
+shen_psi_cor_df <- data.frame(rtpcr_psi = c(shen_rmats_jc_psi$GS689_rtPCR_mean_PSI,shen_rmats_jc_psi$PC3E_rtPCR_mean_PSI), 
+                         jc_psi = c(shen_rmats_jc_psi$GS689_psi_mid,shen_rmats_jc_psi$PC3E_psi_mid))
+
+shen_psi_plot <- shen_psi_cor_df %>% 
+  ggplot(aes(x = rtpcr_psi, y = jc_psi)) + 
+    geom_point() + 
+    geom_smooth(method = "lm") + 
+    theme_bw() +
+    xlab(expression(paste("RT-PCR ", Psi))) + 
+    ylab(expression(paste("junctionCounts ", Psi))) + 
+    annotate("label", x = 0.25, y = 0.95, label = expression(paste("jC RT-PCR: ",R^{2},'=',"0.84"))) + 
+    ggtitle(expression(paste("junctionCounts ",Psi, " (PC3E and GS689) vs RT-PCR ",Psi)),
+      subtitle = "RNA-seq/rt-PCR data from Shen et al PNAS 2014")
+
+ggsave(plot = shen_psi_plot, filename = "zhang_jc_vs_rtpcr_psi.pdf")
+
+
+```
+
+```{r}
+
+combined_dpsi_df <- data.frame(rtPCR = c(zhang_majiq_jc_joined$RTPCR_dPSI_.Liv.Cer., 
+                                         shen_rmats_jc_joined$PC3E...GS689..RT.PCR.Inclusion.Level.),
+                               jC = c(zhang_majiq_jc_joined$mid_dpsi, shen_rmats_jc_joined$mid_dpsi),
+                               experiment = c(rep("Zhang 2014", length(zhang_majiq_jc_joined$RTPCR_dPSI_.Liv.Cer.)),
+                                              rep("Shen 2014", length(shen_rmats_jc_joined$PC3E...GS689..RT.PCR.Inclusion.Level.))))
+
+combined_psi_df <- rbind(zhang_psi_cor_df %>% mutate(experiment = "Zhang 2014"),
+                         shen_psi_cor_df %>% mutate(experiment = "Shen 2014"))
+
+combined_dpsi_r2.value <- cor(combined_dpsi_df$rtPCR, combined_dpsi_df$jC)^2
+combined_psi_r2.value <- cor(combined_psi_df$rtpcr_psi, combined_psi_df$jc_psi, use = "complete.obs")^2
+
+combined_dpsi_plot <- combined_dpsi_df %>% 
+  ggplot(aes(x = rtPCR, y = jC, col = experiment, fill = experiment)) + 
+    geom_point() + 
+    geom_smooth(method = "lm") +
+    theme_bw() + 
+    xlab(expression(paste("RT-PCR ", Delta, Psi))) + 
+    ylab(expression(paste("junctionCounts ", Delta, Psi))) + 
+    annotate("text", x = -0.3, y = 1, label = expression(paste("jC RT-PCR combined: ",R^{2}," = 0.95")), size = 3) + 
+    annotate("text", x = -0.35, y = 0.85, label = expression(paste("jC RT-PCR Zhang: ",R^{2}," = 0.97")), size = 3) + 
+    annotate("text", x = -0.365, y = 0.7, label = expression(paste("jC RT-PCR Shen: ",R^{2}," = 0.91")), size = 3) + 
+    ggtitle(expression(paste("junctionCounts ",Delta,Psi, " vs RT-PCR ",Delta,Psi)),
+      subtitle = "RNA-seq/rt-PCR data from Shen et al PNAS 2014\nRNA-seq data from Zhang et al PNAS 2014\nrt-PCR data from Vaquero-Garcia et al eLife 2016") + 
+    scale_color_manual(values = c("black","red")) + 
+    scale_fill_manual(values = c("black","red"))
+
+ggsave(plot = combined_dpsi_plot, filename = "combined_jc_vs_rtpcr_dpsi.png")
+ggsave(plot = combined_dpsi_plot, filename = "combined_jc_vs_rtpcr_dpsi.pdf")
+
+
+combined_psi_plot <- combined_psi_df %>% 
+  ggplot(aes(x = rtpcr_psi, y = jc_psi, col = experiment, fill = experiment)) + 
+    geom_point() + 
+    geom_smooth(method = "lm") + 
+    theme_bw() +
+    xlab(expression(paste("RT-PCR ", Psi))) + 
+    ylab(expression(paste("junctionCounts ", Psi))) + 
+    annotate("text", x = 0.75, y = 0.2, label = expression(paste("jC RT-PCR combined: ",R^{2}," = 0.91")), size = 3) + 
+    annotate("text", x = 0.725, y = 0.125, label = expression(paste("jC RT-PCR Zhang: ",R^{2}," = 0.95")), size = 3) + 
+    annotate("text", x = 0.715, y = 0.05, label = expression(paste("jC RT-PCR Shen: ",R^{2}," = 0.84")), size = 3) + 
+    ggtitle(expression(paste("junctionCounts ",Psi, " vs RT-PCR ",Psi)),
+      subtitle = "RNA-seq/rt-PCR data from Shen et al PNAS 2014\nRNA-seq data from Zhang et al PNAS 2014\nrt-PCR data from Vaquero-Garcia et al eLife 2016") + 
+    scale_color_manual(values = c("black","red")) + 
+    scale_fill_manual(values = c("black","red"))
+
+ggsave(plot = combined_psi_plot, filename = "combined_jc_vs_rtpcr_psi.png")
+ggsave(plot = combined_psi_plot, filename = "combined_jc_vs_rtpcr_psi.pdf")
+
+
+```
