@@ -54,10 +54,6 @@ python2.7 /path/to/infer_pairwise_events.py --transcript_gtf /path/to/transcript
 | chr1    | StringTie | exon       | 11869 | 12227 | 1000  | +      | .     | gene_id "MSTRG.1"; transcript_id "ENST00000456328.2_1"; exon_number "1"; gene_name "DDX11L1"; ref_gene_id "ENSG00000223972.5_2";  |
 | chr1    | StringTie | exon       | 12613 | 12721 | 1000  | +      | .     | gene_id "MSTRG.1"; transcript_id "ENST00000456328.2_1"; exon_number "2"; gene_name "DDX11L1"; ref_gene_id "ENSG00000223972.5_2";  |
 | chr1    | StringTie | exon       | 13221 | 14409 | 1000  | +      | .     | gene_id "MSTRG.1"; transcript_id "ENST00000456328.2_1"; exon_number "3"; gene_name "DDX11L1"; ref_gene_id "ENSG00000223972.5_2";  |
-| chr1    | StringTie | transcript | 12010 | 13670 | 1000  | +      | .     | gene_id "MSTRG.1"; transcript_id "ENST00000450305.2_1"; gene_name "DDX11L1"; ref_gene_id "ENSG00000223972.5_2";                   |
-| chr1    | StringTie | exon       | 12010 | 12057 | 1000  | +      | .     | gene_id "MSTRG.1"; transcript_id "ENST00000450305.2_1"; exon_number "1"; gene_name "DDX11L1"; ref_gene_id "ENSG00000223972.5_2";  |
-| chr1    | StringTie | exon       | 12179 | 12227 | 1000  | +      | .     | gene_id "MSTRG.1"; transcript_id "ENST00000450305.2_1"; exon_number "2"; gene_name "DDX11L1"; ref_gene_id "ENSG00000223972.5_2";  |
-| chr1    | StringTie | exon       | 12613 | 12697 | 1000  | +      | .     | gene_id "MSTRG.1"; transcript_id "ENST00000450305.2_1"; exon_number "3"; gene_name "DDX11L1"; ref_gene_id "ENSG00000223972.5_2";  |
 
 ### Output file descriptions
 
