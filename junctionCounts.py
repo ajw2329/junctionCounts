@@ -716,7 +716,7 @@ def calc_psi(standard_event_dict, outdir, sample_name, gzipped, gene_jc_dict, su
 					min_included = min(included_counts)
 				except:
 					print chrom, strand, event
-					print standard_event_dict[event]
+					print standard_event_dict[chrom][strand][event]
 				avg_included = float(sum(included_counts))/float(len(included_counts))
 
 				excluded_counts = [standard_event_dict[chrom][strand][event]["excluded_junction_counts"][i] for i in standard_event_dict[chrom][strand][event]["excluded_junction_counts"]]
