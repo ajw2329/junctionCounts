@@ -284,11 +284,11 @@ combined_dpsi_plot <- combined_dpsi_df %>%
     theme_bw() + 
     xlab(expression(paste("RT-PCR ", Delta, Psi))) + 
     ylab(expression(paste("junctionCounts ", Delta, Psi))) + 
-    annotate("text", x = -0.3, y = 1, label = expression(paste("jC RT-PCR combined: ",R^{2}," = 0.95")), size = 3) + 
+    annotate("text", x = -0.3, y = 1, label = expression(paste("jC RT-PCR combined: ",R^{2}," = 0.96")), size = 3) + 
     annotate("text", x = -0.35, y = 0.85, label = expression(paste("jC RT-PCR Zhang: ",R^{2}," = 0.97")), size = 3) + 
-    annotate("text", x = -0.365, y = 0.7, label = expression(paste("jC RT-PCR Shen: ",R^{2}," = 0.91")), size = 3) + 
+    annotate("text", x = -0.365, y = 0.7, label = expression(paste("jC RT-PCR Shen: ",R^{2}," = 0.92")), size = 3) + 
     ggtitle(expression(paste("junctionCounts ",Delta,Psi, " vs RT-PCR ",Delta,Psi)),
-      subtitle = "RNA-seq/rt-PCR data from Shen et al PNAS 2014\nRNA-seq data from Zhang et al PNAS 2014\nrt-PCR data from Vaquero-Garcia et al eLife 2016") + 
+      subtitle = "RNA-seq/RT-PCR data from Shen et al PNAS 2014\nRNA-seq data from Zhang et al PNAS 2014\nRT-PCR data from Vaquero-Garcia et al eLife 2016") + 
     scale_color_manual(values = c("black","red")) + 
     scale_fill_manual(values = c("black","red"))
 
@@ -307,7 +307,7 @@ combined_psi_plot <- combined_psi_df %>%
     annotate("text", x = 0.725, y = 0.125, label = expression(paste("jC RT-PCR Zhang: ",R^{2}," = 0.95")), size = 3) + 
     annotate("text", x = 0.715, y = 0.05, label = expression(paste("jC RT-PCR Shen: ",R^{2}," = 0.84")), size = 3) + 
     ggtitle(expression(paste("junctionCounts ",Psi, " vs RT-PCR ",Psi)),
-      subtitle = "RNA-seq/rt-PCR data from Shen et al PNAS 2014\nRNA-seq data from Zhang et al PNAS 2014\nrt-PCR data from Vaquero-Garcia et al eLife 2016") + 
+      subtitle = "RNA-seq/RT-PCR data from Shen et al PNAS 2014\nRNA-seq data from Zhang et al PNAS 2014\nRT-PCR data from Vaquero-Garcia et al eLife 2016") + 
     scale_color_manual(values = c("black","red")) + 
     scale_fill_manual(values = c("black","red"))
 

@@ -529,7 +529,7 @@ def classify_event(pre_common, post_common, tx1_unique, tx2_unique, form_1_exons
             elif strand == "-":
                 event_type = "AL"
 
-        elif (len(included_exons) > 2 and len(excluded_exons) >= 2 and len(included_unique) > 2 and len(excluded_unique) >= 2) or (len(included_exons) >= 2 and len(excluded_exons) > 2 and len(included_unique) >= 2 and len(excluded_unique) > 2):
+        elif (len(included_exons) > 2 and len(excluded_exons) >= 2 and len(included_unique) > 2 and len(excluded_unique) >= 2 and (included_exons[0] == excluded_exons[0] or included_exons[-1] == excluded_exons[-1])) or (len(included_exons) >= 2 and len(excluded_exons) > 2 and len(included_unique) >= 2 and len(excluded_unique) > 2 and (included_exons[0] == excluded_exons[0] or included_exons[-1] == excluded_exons[-1])):
             if strand == "+":
                 event_type = "MF"
             elif strand == "-":

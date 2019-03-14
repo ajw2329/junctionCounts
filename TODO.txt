@@ -1,0 +1,15 @@
+## Improve infer_pairwise_events algorithm
+
+### Experiment with the following approach:
+
+#### Collect all transcripts in a gene 
+#### Label nodes for each transcript as is done currently
+#### Identify common nodes and nodes that are specific to a subset of transcripts
+#### Iterate over specific nodes: 
+
+##### For a given specific node in a given transcript, iterate outward over transcript nodes until a pair is reached that are common to all transcripts
+##### The resulting event is then the collection of unique paths between the common nodes
+##### Note that this approach generalizes the event calling to non-binary events
+
+##### Propose splitting classifications into binary (including SE, MS etc - all current event types) and non-binary (propose NF, NL, NM for non-binary first, last, and middle)
+##### Non-binary events can be potentially re-classified post-quantification. If an isoform never exceeds a given percentage, it can be pruned. Consequently, many ostensibly non-binary events may become binary.
