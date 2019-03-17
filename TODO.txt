@@ -1,3 +1,6 @@
+## Fix find unique edges function in splice_lib.py so that sidedness matters
+
+
 ## Improve infer_pairwise_events algorithm
 
 ### Experiment with the following approach:
@@ -13,3 +16,5 @@
 
 ##### Propose splitting classifications into binary (including SE, MS etc - all current event types) and non-binary (propose NF, NL, NM for non-binary first, last, and middle)
 ##### Non-binary events can be potentially re-classified post-quantification. If an isoform never exceeds a given percentage, it can be pruned. Consequently, many ostensibly non-binary events may become binary.
+
+

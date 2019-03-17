@@ -464,12 +464,14 @@ def assign_reads(read_properties, junction_indexed_event_dict, junction_only_cou
 
 		if bootstraps:
 
-			read_info = {"minimal_candidate_isoform_list": minimal_candidate_isoform_list,
-						 "junctions": event_junction_dict,
-						 "eij": event_eij_dict,
-						 "chrom": chrom,
-						 "strand": strand,
-						 "possible_strands": possible_strands}
+			#read_info = {"minimal_candidate_isoform_list": minimal_candidate_isoform_list,
+			#			 "junctions": event_junction_dict,
+			#			 "eij": event_eij_dict,
+			#			 "chrom": chrom,
+			#			 "strand": strand,
+			#			 "possible_strands": possible_strands}
+
+			read_info = [minimal_candidate_isoform_list, event_junction_dict, event_eij_dict, chrom, strand, possible_strands]
 
 			return read_info
 
@@ -480,24 +482,22 @@ def bootstrap_junction_counts(all_read_info, junction_only_count_dict, standard_
 
 		read = all_read_info[randint(0,n_reads - 1)]
 
-		minimal_candidate_isoform_list = read["minimal_candidate_isoform_list"]
-		event_junction_dict = read["junctions"]
-		event_eij_dict = read["eij"]
-		chrom = read["chrom"]
-		strand = read["strand"]
-		possible_strands = read["possible_strands"]
+		#minimal_candidate_isoform_list = read["minimal_candidate_isoform_list"]
+		#event_junction_dict = read["junctions"]
+		#event_eij_dict = read["eij"]
+		#chrom = read["chrom"]
+		#strand = read["strand"]
+		#possible_strands = read["possible_strands"]
 
-		#for junction in junctions:
 
-		#	if junction in junction_indexed_event_dict:
+		minimal_candidate_isoform_list = read[0]
+		event_junction_dict = read[1]
+		event_eij_dict = read[2]
+		chrom = read[3]
+		strand = read[4]
+		possible_strands = read[5]
 
-		#		junction_only_count_dict[junction] += 1
 
-		#for eij in overlapping_eij:
-
-		#	if eij in eij_indexed_event_dict:
-
-		#		eij_only_count_dict[eij] += 1
 
 
 		for i in minimal_candidate_isoform_list:
