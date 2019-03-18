@@ -260,7 +260,7 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 
 			entry = i.split()
 			if len(entry) == 4:
-				read_counter += int(entry[2])
+				read_count += int(entry[2])
 
 		size = read_count/2.0
 
