@@ -269,6 +269,7 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 	else:
 		h5dset = None
 		h5filename = None
+		size = None
 
 	index_counter = 0
 
@@ -292,7 +293,7 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 			index_counter += 1
 
 
-	return h5dset, h5filename
+	return h5dset, h5filename, size
 
 
 def assign_reads(read_properties, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read, bootstraps, h5dset, index_counter):
@@ -957,7 +958,7 @@ def main(args, event_dict = None):
 		eij_only_count_dict_pristine = copy.deepcopy(eij_only_count_dict)
 
 
-	h5dset, h5filename = process_reads(bam_filename, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, output_directory, sample_name, forward_read = forward_read, single_end = se, bootstraps = bootstraps)
+	h5dset, h5filename, n_reads = process_reads(bam_filename, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, output_directory, sample_name, forward_read = forward_read, single_end = se, bootstraps = bootstraps)
 
 	###get counts of each exon edge (i.e. the sum of all junctions involving that exon)
 
@@ -986,8 +987,6 @@ def main(args, event_dict = None):
 	if bootstraps:
 
 		print "{0}: {1} seconds elapsed. Beginning bootstrapping.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
-
-		n_reads = len(all_read_info)
 
 		for i in range(0, n_bootstraps):
 
