@@ -245,6 +245,9 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 
 	bam = pysam.AlignmentFile(bam_filename, 'rb')
 
+	max_list_len = 1000000
+	all_read_info = [None]*max_list_len
+
 
 	if bootstraps:
 
@@ -262,7 +265,7 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 			if len(entry) == 4:
 				read_count += int(entry[2])
 
-		size = read_count/2.0
+		size = read_count if single_end else read_count/2.0
 
 		h5dset = h5file.create_dataset('bootstraps', (size,), dtype=dt, chunks = True)
 
@@ -272,15 +275,26 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 		size = None
 
 	index_counter = 0
+	list_index_counter = 0
 
 	if single_end:
 
 		for read in bam:
 
 			read_properties = parse_reads([read], forward_read)
-			read_info = assign_reads(read_properties, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read, bootstraps, h5dset, index_counter)
+			read_info = assign_reads(read_properties, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read, bootstraps, all_read_info, index_counter)
 
-			index_counter += 1
+			if bootstraps:
+
+				all_read_info[list_index_counter] = read_info
+				index_counter += 1
+				list_index_counter += 1
+
+				if list_index_counter > max_list_len - 1:
+
+					list_index_counter = 0
+
+					h5dset[index_counter - max_list_len:index_counter + 1] = all_read_info
 
 
 	else:
@@ -288,15 +302,23 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 		for read1, read2 in read_pair_generator(bam):
 
 			read_properties = parse_reads([read1, read2], forward_read)
-			read_info = assign_reads(read_properties, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read, bootstraps, h5dset, index_counter)
+			read_info = assign_reads(read_properties, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read, bootstraps, all_read_info, index_counter)
+			if bootstraps:
 
-			index_counter += 1
+				all_read_info[list_index_counter] = read_info
+				index_counter += 1
+				list_index_counter += 1
 
+				if list_index_counter > max_list_len - 1:
+
+					list_index_counter = 0
+
+					h5dset[index_counter - max_list_len:index_counter + 1] = all_read_info
 
 	return h5dset, h5filename, size
 
 
-def assign_reads(read_properties, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read, bootstraps, h5dset, index_counter):
+def assign_reads(read_properties, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read, bootstraps, all_read_info, index_counter):
 
 		exons = read_properties["exons"]
 		junctions = read_properties["junctions"]
@@ -508,7 +530,7 @@ def assign_reads(read_properties, junction_indexed_event_dict, junction_only_cou
 			h5dset[index_counter] = "&".join([event_junction_dict_list, event_eij_dict_list, chrom, strand, possible_strands])
 
 
-def bootstrap_junction_counts(all_read_info, junction_only_count_dict, standard_event_dict, eij_only_count_dict, junction_indexed_event_dict, eij_indexed_event_dict, n_reads, forward_read, h5dset):
+def bootstrap_junction_counts(junction_only_count_dict, standard_event_dict, eij_only_count_dict, junction_indexed_event_dict, eij_indexed_event_dict, n_reads, forward_read, h5dset):
 
 	for n in range(0,n_reads):
 
@@ -994,7 +1016,7 @@ def main(args, event_dict = None):
 			standard_event_dict_bootstrap = copy.deepcopy(standard_event_dict_pristine)
 			eij_only_count_dict_bootstrap = copy.deepcopy(eij_only_count_dict_pristine)
 
-			bootstrap_junction_counts(all_read_info, junction_only_count_dict_bootstrap, standard_event_dict_bootstrap, eij_only_count_dict_bootstrap, junction_indexed_event_dict, eij_indexed_event_dict,  n_reads, forward_read, h5dset)
+			bootstrap_junction_counts(junction_only_count_dict_bootstrap, standard_event_dict_bootstrap, eij_only_count_dict_bootstrap, junction_indexed_event_dict, eij_indexed_event_dict,  n_reads, forward_read, h5dset)
 
 			if not args.enable_edge_use:
 				get_exon_edge_counts(junction_only_count_dict_bootstrap, junction_indexed_event_dict, standard_event_dict_bootstrap)
