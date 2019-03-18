@@ -287,14 +287,21 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 			if bootstraps:
 
 				all_read_info[list_index_counter] = read_info
-				index_counter += 1
-				list_index_counter += 1
 
 				if list_index_counter > max_list_len - 1:
 
 					list_index_counter = 0
 
 					h5dset[index_counter - max_list_len:index_counter + 1] = all_read_info
+
+					index_counter += 1
+
+				else:
+
+					index_counter += 1
+					list_index_counter += 1
+
+
 
 
 	else:
@@ -303,27 +310,28 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 
 			read_properties = parse_reads([read1, read2], forward_read)
 			read_info = assign_reads(read_properties, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read, bootstraps, all_read_info, list_index_counter)
+
 			if bootstraps:
 
 				all_read_info[list_index_counter] = read_info
-				index_counter += 1
-				list_index_counter += 1
 
-				if list_index_counter > max_list_len - 1:
+				if list_index_counter == max_list_len - 1:
 
 					list_index_counter = 0
 
-					print "len all read info", len(all_read_info)
-					print "index_counter", index_counter
-					print "list_index_counter", list_index_counter
-
 					h5dset[index_counter - max_list_len:index_counter + 1] = all_read_info
+
+					index_counter += 1
+
+				else:
+					list_index_counter += 1
+					index_counter += 1
 
 
 	return h5dset, h5filename, size
 
 
-def assign_reads(read_properties, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read, bootstraps, all_read_info, list_index_counter):
+def assign_reads(read_properties, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read, bootstraps):
 
 		exons = read_properties["exons"]
 		junctions = read_properties["junctions"]
@@ -532,7 +540,7 @@ def assign_reads(read_properties, junction_indexed_event_dict, junction_only_cou
 			#			 "strand": strand,
 			#			 "possible_strands": possible_strands}
 
-			all_read_info[list_index_counter] = "&".join([event_junction_dict_list, event_eij_dict_list, chrom, strand, possible_strands])
+			return "&".join([event_junction_dict_list, event_eij_dict_list, chrom, strand, possible_strands])
 
 
 def bootstrap_junction_counts(junction_only_count_dict, standard_event_dict, eij_only_count_dict, junction_indexed_event_dict, eij_indexed_event_dict, n_reads, forward_read, h5dset):
