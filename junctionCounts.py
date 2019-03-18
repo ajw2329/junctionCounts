@@ -463,8 +463,8 @@ def assign_reads(read_properties, junction_indexed_event_dict, junction_only_cou
 
 		if bootstraps:
 
-			event_junction_dict_list = [[event, list(junctions)] for event, junctions in event_junction_dict.items()]
-			event_eij_dict_list = [[event, list(eij)] for event, eij in event_eij_dict.items()]
+			event_junction_dict_list = ((event, tuple(junctions)) for event, junctions in event_junction_dict.items())
+			event_eij_dict_list = ((event, tuple(eij)) for event, eij in event_eij_dict.items())
 
 			#read_info = {"minimal_candidate_isoform_list": minimal_candidate_isoform_list,
 			#			 "junctions": event_junction_dict,
@@ -473,7 +473,7 @@ def assign_reads(read_properties, junction_indexed_event_dict, junction_only_cou
 			#			 "strand": strand,
 			#			 "possible_strands": possible_strands}
 
-			read_info = [event_junction_dict_list, event_eij_dict_list, chrom, strand, possible_strands]
+			read_info = [event_junction_dict_list, event_eij_dict_list, chrom, strand, tuple(possible_strands)]
 
 			return read_info
 
