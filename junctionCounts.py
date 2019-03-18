@@ -13,6 +13,7 @@ from ncls import NCLS
 from random import randint
 import pysam
 from collections import defaultdict
+import h5py
 
 
 
@@ -235,40 +236,66 @@ def intersection_collapse(input_list):
 		return minimal_list
 
 
-def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read = "R2", single_end = False, bootstraps = False):
+def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, output_directory, sample_name, forward_read = "R2", single_end = False, bootstraps = False):
 
 	'''
 		Primary read assignment functino - takes as input a junction read filename (i.e. a BED12 file - can be gzipped), parses the read with "parse_junction_read", collapses matching events with "intersection_collapse", and adds 1 count to all surviving event matches in the event ID-indexed dictionary.
 	'''
 
 
-	all_read_info = []
-
-
 	bam = pysam.AlignmentFile(bam_filename, 'rb')
+
+
+	if bootstraps:
+
+		dt = h5py.special_dtype(vlen=str)
+		h5filename=output_directory + '_' + sample_name + '_bootstrap_data.h5'
+		h5file=h5py.File(h5filename,'w')
+
+		idxstats = pysam.idxstats("hEBw1_fj101_dup_removed.bam").split("\n")
+
+		read_count = 0
+
+		for i in idxstats:
+
+			entry = idxstats.split()
+			if len(entry == 4):
+				read_counter += int(entry[2])
+
+		size = read_count/2.0
+
+		h5dset = h5File.create_dataset('bootstraps', (size,), dtype=dt)
+
+	else:
+		h5dset = None
+		h5filename = None
+
+	index_counter = 0
 
 	if single_end:
 
 		for read in bam:
 
 			read_properties = parse_reads([read], forward_read)
-			read_info = assign_reads(read_properties, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read, bootstraps)
-			if bootstraps:
-				all_read_info.append(read_info)
+			read_info = assign_reads(read_properties, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read, bootstraps, h5dset, index_counter)
+
+			index_counter += 1
+
 
 	else:
 
 		for read1, read2 in read_pair_generator(bam):
 
 			read_properties = parse_reads([read1, read2], forward_read)
-			read_info = assign_reads(read_properties, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read, bootstraps)
-			if bootstraps:
-				all_read_info.append(read_info)
+			read_info = assign_reads(read_properties, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read, bootstraps, h5dset, index_counter)
 
-	return all_read_info
+			index_counter += 1
 
 
-def assign_reads(read_properties, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read, bootstraps):
+	return h5dset, h5filename
+
+
+def assign_reads(read_properties, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read, bootstraps, h5dset, index_counter):
 
 		exons = read_properties["exons"]
 		junctions = read_properties["junctions"]
@@ -463,8 +490,12 @@ def assign_reads(read_properties, junction_indexed_event_dict, junction_only_cou
 
 		if bootstraps:
 
-			event_junction_dict_list = [[event, list(junctions)] for event, junctions in event_junction_dict.items()]
-			event_eij_dict_list = [[event, list(eij)] for event, eij in event_eij_dict.items()]
+			## convert to strings for h5py storage
+
+			event_junction_dict_list = "|".join([event + ":" + ",".join(junctions) for event, junctions in event_junction_dict.items()])
+			event_eij_dict_list = "|".join([event + ":" + ",".join(eij) for event, eij in event_eij_dict.items()])
+
+			possible_strands = ",".join(possible_strands)
 
 			#read_info = {"minimal_candidate_isoform_list": minimal_candidate_isoform_list,
 			#			 "junctions": event_junction_dict,
@@ -473,16 +504,14 @@ def assign_reads(read_properties, junction_indexed_event_dict, junction_only_cou
 			#			 "strand": strand,
 			#			 "possible_strands": possible_strands}
 
-			read_info = [event_junction_dict_list, event_eij_dict_list, chrom, strand, possible_strands]
-
-			return read_info
+			h5dset[index_counter] = "&".join([event_junction_dict_list, event_eij_dict_list, chrom, strand, possible_strands])
 
 
-def bootstrap_junction_counts(all_read_info, junction_only_count_dict, standard_event_dict, eij_only_count_dict, junction_indexed_event_dict, eij_indexed_event_dict, n_reads, forward_read):
+def bootstrap_junction_counts(all_read_info, junction_only_count_dict, standard_event_dict, eij_only_count_dict, junction_indexed_event_dict, eij_indexed_event_dict, n_reads, forward_read, h5dset):
 
 	for n in range(0,n_reads):
 
-		read = all_read_info[randint(0,n_reads - 1)]
+		read = h5dset[randint(0,n_reads - 1)].split("&")
 
 		#minimal_candidate_isoform_list = read["minimal_candidate_isoform_list"]
 		#event_junction_dict = read["junctions"]
@@ -491,11 +520,11 @@ def bootstrap_junction_counts(all_read_info, junction_only_count_dict, standard_
 		#strand = read["strand"]
 		#possible_strands = read["possible_strands"]
 
-		event_junction_dict_list = read[0]
-		event_eij_dict_list = read[1]
+		event_junction_dict_list = [[i.split(":")[0], i.split(":")[1].split(",")] for i in read[0].split("|")]
+		event_eij_dict_list = = [[i.split(":")[0], i.split(":")[1].split(",")] for i in read[1].split("|")]
 		chrom = read[2]
 		strand = read[3]
-		possible_strands = read[4]
+		possible_strands = read[4].split(",")
 
 
 		if forward_read != "unstranded":
@@ -928,7 +957,7 @@ def main(args, event_dict = None):
 		eij_only_count_dict_pristine = copy.deepcopy(eij_only_count_dict)
 
 
-	all_read_info = process_reads(bam_filename, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read = forward_read, single_end = se, bootstraps = bootstraps)
+	h5dset, h5filename = process_reads(bam_filename, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, output_directory, sample_name, forward_read = forward_read, single_end = se, bootstraps = bootstraps)
 
 	###get counts of each exon edge (i.e. the sum of all junctions involving that exon)
 
@@ -966,7 +995,7 @@ def main(args, event_dict = None):
 			standard_event_dict_bootstrap = copy.deepcopy(standard_event_dict_pristine)
 			eij_only_count_dict_bootstrap = copy.deepcopy(eij_only_count_dict_pristine)
 
-			bootstrap_junction_counts(all_read_info, junction_only_count_dict_bootstrap, standard_event_dict_bootstrap, eij_only_count_dict_bootstrap, junction_indexed_event_dict, eij_indexed_event_dict,  n_reads, forward_read)
+			bootstrap_junction_counts(all_read_info, junction_only_count_dict_bootstrap, standard_event_dict_bootstrap, eij_only_count_dict_bootstrap, junction_indexed_event_dict, eij_indexed_event_dict,  n_reads, forward_read, h5dset)
 
 			if not args.enable_edge_use:
 				get_exon_edge_counts(junction_only_count_dict_bootstrap, junction_indexed_event_dict, standard_event_dict_bootstrap)
