@@ -264,7 +264,7 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 
 		size = read_count/2.0
 
-		h5dset = h5File.create_dataset('bootstraps', (size,), dtype=dt)
+		h5dset = h5file.create_dataset('bootstraps', (size,), dtype=dt)
 
 	else:
 		h5dset = None
