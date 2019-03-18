@@ -258,7 +258,7 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 
 		for i in idxstats:
 
-			entry = idxstats.split()
+			entry = i.split()
 			if len(entry == 4):
 				read_counter += int(entry[2])
 
