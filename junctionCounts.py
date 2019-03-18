@@ -313,7 +313,13 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 
 					list_index_counter = 0
 
+					print "len all read info", len(all_read_info)
+					print "index_counter", index_counter
+					print "list_index_counter", list_index_counter
+
 					h5dset[index_counter - max_list_len:index_counter + 1] = all_read_info
+
+					all_read_info = 
 
 	return h5dset, h5filename, size
 
