@@ -249,7 +249,7 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 	if bootstraps:
 
 		dt = h5py.special_dtype(vlen=str)
-		h5filename=output_directory + '_' + sample_name + '_bootstrap_data.h5'
+		h5filename = output_directory + '/' + sample_name + '_bootstrap_data.h5'
 		h5file=h5py.File(h5filename,'w')
 
 		idxstats = pysam.idxstats(bam_filename).split("\n")
@@ -264,7 +264,7 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 
 		size = read_count/2.0
 
-		h5dset = h5file.create_dataset('bootstraps', (size,), dtype=dt)
+		h5dset = h5file.create_dataset('bootstraps', (size,), dtype=dt, chunks = True)
 
 	else:
 		h5dset = None
