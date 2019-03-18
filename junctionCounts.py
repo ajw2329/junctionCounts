@@ -409,12 +409,6 @@ def assign_reads(read_properties, junction_indexed_event_dict, junction_only_cou
 			event_junction_dict = {k:v for k,v in event_junction_dict.items() if k in minimal_candidate_isoform_list_flat}
 			event_eij_dict = {k:v for k,v in event_eij_dict.items() if k in minimal_candidate_isoform_list_flat}
 
-
-			identifier = j.split("_")
-			
-			event_id = "_".join(identifier[0:-1])
-			event_form = identifier[-1]
-
 			#standard_event_dict[chrom][strand][event_id][event_form + "_" + "count"] += 1 ## total count
 
 			if forward_read != "unstranded":
