@@ -282,7 +282,7 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 		for read in bam:
 
 			read_properties = parse_reads([read], forward_read)
-			read_info = assign_reads(read_properties, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read, bootstraps, all_read_info, index_counter)
+			read_info = assign_reads(read_properties, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read, bootstraps, all_read_info, list_index_counter)
 
 			if bootstraps:
 
@@ -302,7 +302,7 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 		for read1, read2 in read_pair_generator(bam):
 
 			read_properties = parse_reads([read1, read2], forward_read)
-			read_info = assign_reads(read_properties, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read, bootstraps, all_read_info, index_counter)
+			read_info = assign_reads(read_properties, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read, bootstraps, all_read_info, list_index_counter)
 			if bootstraps:
 
 				all_read_info[list_index_counter] = read_info
@@ -318,7 +318,7 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 	return h5dset, h5filename, size
 
 
-def assign_reads(read_properties, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read, bootstraps, all_read_info, index_counter):
+def assign_reads(read_properties, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read, bootstraps, all_read_info, list_index_counter):
 
 		exons = read_properties["exons"]
 		junctions = read_properties["junctions"]
@@ -527,7 +527,7 @@ def assign_reads(read_properties, junction_indexed_event_dict, junction_only_cou
 			#			 "strand": strand,
 			#			 "possible_strands": possible_strands}
 
-			h5dset[index_counter] = "&".join([event_junction_dict_list, event_eij_dict_list, chrom, strand, possible_strands])
+			all_read_info[list_index_counter] = "&".join([event_junction_dict_list, event_eij_dict_list, chrom, strand, possible_strands])
 
 
 def bootstrap_junction_counts(junction_only_count_dict, standard_event_dict, eij_only_count_dict, junction_indexed_event_dict, eij_indexed_event_dict, n_reads, forward_read, h5dset):
