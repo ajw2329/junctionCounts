@@ -252,7 +252,7 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 		h5filename=output_directory + '_' + sample_name + '_bootstrap_data.h5'
 		h5file=h5py.File(h5filename,'w')
 
-		idxstats = pysam.idxstats("hEBw1_fj101_dup_removed.bam").split("\n")
+		idxstats = pysam.idxstats(bam_filename).split("\n")
 
 		read_count = 0
 
