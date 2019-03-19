@@ -12,7 +12,7 @@ kallisto_abundance <- "/hive/users/anjowall/projects/polyester_exploration/h9esc
 
 filename <- "abundance.tsv"
 
-import_est_counts <- function(samples) {
+import_fpkms <- function(samples) {
 
 	df_list = list()
 
@@ -24,15 +24,22 @@ import_est_counts <- function(samples) {
 			sep = "\t",
 			stringsAsFactors = FALSE) %>% 
 		select(target_id, est_counts) %>%
-		rename(transcript_id = target_id, !!sample := est_counts)
+		mutate(fpk = est_counts/eff_length) %>%
+		rename(transcript_id = target_id, !!sample := fpk)
 		df_list <- c(df_list, list(temp_df))
 
 	}
 
-	est_counts_df <- df_list %>%
+	fpk_df <- df_list %>%
 		reduce(inner_join, by = "transcript_id")
 
-	return(mean_tpm_df)
+	fragment_totals <- colSums(fpk_df[,2:ncol(fpk_df)])
+
+	per_million_factors <- fragment_totals/1000000
+
+	fpkm_df <- fpk_df/per_million_factors
+
+	return(list(fpkm_df, fragment_totals))
 
 }
 
@@ -49,78 +56,29 @@ exp1b_samples <- c("SRR536348","SRR536350","SRR536352")
 
 ###exp1a mean tpms
 
-exp1a_mean_tpm <- import_tpms(exp1a_samples)
-exp1b_mean_tpm <- import_tpms(exp1b_samples)
+exp1a_res <- import_fpkms(exp1a_samples)
+exp1b_res <- import_fpkms(exp1b_samples)
 
-exp1a_depth <- exp1a_mean_tpm %>%
-	summarize(depth = sum(mean_est_counts)) %>%
-	pull(depth)
+exp1a_fpkm <- exp1a_res[[1]]
+exp1b_fpkm <- exp1b_res[[1]]
 
-exp1b_depth <- exp1b_mean_tpm %>%
-	summarize(depth = sum(mean_est_counts)) %>%
-	pull(depth)
+exp1a_depth <- exp1a_res[[2]]
+exp1b_depth <- exp1b_res[[2]]
 
+exp1_fpkm <- exp1a_fpkm %>% 
+	inner_join(exp1b_fpkm, by = "transcript_id")
 
-## get fold changes
+exp1_fpkm_mat <- as.matrix(exp1_fpkm[,2:ncol(exp1_fpkm)])
+rownames(exp1_fpkm_mat) <- exp1_fpkm$transcript_id
 
-fc_df <- exp1a_mean_tpm %>% 
-	mutate(mean_tpm = mean_tpm_a) %>%
-	inner_join(exp1b_mean_tpm, by = "transcript_id") %>%
-	mutate(a = 1, b = )
-
-
-
+simulate_experiment_empirical(fpkmMat = exp1_fpkm_mat, 
+							  grouplabels=pData(bg)$group, 
+							  gtf=gtf,
+    seqpath=chr22seq, mean_rps=mean(c(exp1a_depth, exp1b_depth)), outdir='empirical_reads', seed=1247)
 
 
 
-frac_diff <- 0.2
 
-fasta <- readDNAStringSet(fasta_file)
-
-names(fasta) <- lapply(strsplit(names(fasta), "\\s"), function(x) x[1]) %>% unlist()
-
-
-a <- exp(1)^c(rtruncnorm(mean = 1.5, sd = 1, a = 1, n = 10000), rep(0, 40027))
-b <- exp(1)^c(rep(0, 40027), rtruncnorm(mean = 1.5, sd = 1, a = 1, n = 10000))
-
-fc_df <- data.frame(a = a, b = b) %>% sample_n(size = 50027)
-fc_mat <- as.matrix(fc_df)
-head(fc_mat)
-
-#readspertx <- rktnb(n = 50000, mu = 1000, size = 0.1, k = 0)
-
-tpm <- read.table(kallisto_abundance, header = TRUE, sep = "\t") %>% dplyr::filter(est_counts >= 1)##read in kallisto abundance.tsv
-head(tpm)
-desired_depth <- 40000000
-print(desired_depth)
-actual_depth <- sum(tpm$est_counts)
-print(actual_depth)
-readspertx <- tpm %>% mutate(modified_counts = desired_depth*est_counts/actual_depth) %>% pull(modified_counts) %>% round()
-head(readspertx)
-length(readspertx)
-
-tx_count <- nrow(tpm)
-diff_count <- round(frac_diff*tx_count)
-nondiff_count <- tx_count - diff_count
-
-tx_count
-diff_count
-nondiff_count
-
-fasta_subset <- fasta[tpm$target_id]
-writeXStringSet(fasta_subset, new_fasta_file)
-
-a <- exp(1)^c(rtruncnorm(mean = 1.5, sd = 1, a = 1, n = diff_count), rep(0, nondiff_count))
-b <- exp(1)^c(rep(0, nondiff_count), rtruncnorm(mean = 1.5, sd = 1, a = 1, n = diff_count))
-
-fc_df <- data.frame(a = a, b = b) %>% sample_n(size = tx_count)
-fc_mat <- as.matrix(fc_df)
-head(fc_mat)
-
-
-dim(fc_mat)
-
-head(fc_mat*readspertx)
 
 simulate_experiment(new_fasta_file, reads_per_transcript=readspertx, 
     num_reps=c(3,3), fold_changes=fc_mat, outdir='/hive/users/anjowall/projects/polyester_exploration/polyester_out/', paired = TRUE, bias = "rnaf", strand_specific = TRUE, gzip = TRUE)
