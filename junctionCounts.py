@@ -545,7 +545,7 @@ def assign_reads(read_properties, junction_indexed_event_dict, junction_only_cou
 
 def bootstrap_junction_counts(junction_only_count_dict, standard_event_dict, eij_only_count_dict, junction_indexed_event_dict, eij_indexed_event_dict, n_reads, forward_read, h5dset):
 
-	for n in range(0,n_reads):
+	for n in range(0,int(n_reads)):
 
 		read = h5dset[randint(0,n_reads - 1)].split("&")
 
