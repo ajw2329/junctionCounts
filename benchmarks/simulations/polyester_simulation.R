@@ -17,19 +17,18 @@ import_fpkms <- function(samples, base_path, filename) {
 			header = TRUE, 
 			sep = "\t",
 			stringsAsFactors = FALSE) %>% 
-		mutate(fpk = est_counts/eff_length) %>%
-		select(target_id, fpk) %>%
-		rename(transcript_id = target_id, !!sample := fpk)
+		select(target_id, eff_length, est_counts) %>%
+		rename(transcript_id = target_id, !!sample := est_counts)
 		df_list <- c(df_list, list(temp_df))
 
 	}
 
-	fpk_df <- df_list %>%
-		purrr::reduce(inner_join, by = "transcript_id")
+	count_df <- df_list %>%
+		purrr::reduce(inner_join, by = c("transcript_id", "eff_length"))
 
-	print(head(fpk_df))
+	print(head(count_df))
 
-	fragment_totals <- colSums(fpk_df[,2:ncol(fpk_df)])
+	fragment_totals <- colSums(count_df[,3:ncol(fpk_df)])
 
 	print(fragment_totals)
 

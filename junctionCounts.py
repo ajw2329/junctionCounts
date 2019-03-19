@@ -574,7 +574,12 @@ def bootstrap_junction_counts(junction_only_count_dict, standard_event_dict, eij
 		except:
 			print read
 			sys.exit()
-		event_eij_dict_list = [[i.split(":")[0], i.split(":")[1].split(",")] for i in read[1].split("=")] if read[0] != "" else []
+
+		try:
+			event_eij_dict_list = [[i.split(":")[0], i.split(":")[1].split(",")] for i in read[1].split("=")] if read[0] != "" else []
+		except:
+			print read
+			sys.exit()
 		chrom = read[2]
 		strand = read[3]
 		possible_strands = read[4].split(",")
