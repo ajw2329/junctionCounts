@@ -20,13 +20,14 @@ import_fpkms <- function(samples, base_path, filename) {
 		mutate(fpk = est_counts/eff_length) %>%
 		select(target_id, fpk) %>%
 		rename(transcript_id = target_id, !!sample := fpk)
-		print(head(temp_df))
 		df_list <- c(df_list, list(temp_df))
 
 	}
 
 	fpk_df <- df_list %>%
-		reduce(inner_join, by = "transcript_id")
+		purrr::reduce(inner_join, by = "transcript_id")
+
+	print(head(fpk_df))
 
 	fragment_totals <- colSums(fpk_df[,2:ncol(fpk_df)])
 
