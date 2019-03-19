@@ -6,13 +6,13 @@ library(tidyverse)
 
 filename <- "abundance.tsv"
 
-import_fpkms <- function(samples) {
+import_fpkms <- function(samples, base_path, filename) {
 
 	df_list = list()
 
 	for (sample in samples) {
 
-		path = paste0(exp1_base, sample, "/", filename)
+		path = paste0(base_path, sample, "/", filename)
 		temp_df <- read.table(path, 
 			header = TRUE, 
 			sep = "\t",
@@ -52,8 +52,8 @@ exp1b_samples <- c("SRR536348","SRR536350","SRR536352")
 
 ###exp1a mean tpms
 
-exp1a_res <- import_fpkms(exp1a_samples)
-exp1b_res <- import_fpkms(exp1b_samples)
+exp1a_res <- import_fpkms(exp1a_samples, exp1_base, filename)
+exp1b_res <- import_fpkms(exp1b_samples, exp1_base, filename)
 
 exp1a_fpkm <- exp1a_res[[1]]
 exp1b_fpkm <- exp1b_res[[1]]
