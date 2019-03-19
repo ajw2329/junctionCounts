@@ -1,13 +1,7 @@
 library(polyester)
-library(truncnorm)
-library(aster)
-library(dplyr)
-library(Biostrings)
 
+library(tidyverse)
 
-fasta_file <- '/hive/users/anjowall/projects/polyester_exploration/gencode.v26.annotation.50000_tx.fa'
-new_fasta_file <- '/hive/users/anjowall/projects/polyester_exploration/gencode.v26.annotation.50000_tx_subset.fa'
-kallisto_abundance <- "/hive/users/anjowall/projects/polyester_exploration/h9esc_cyto_jd004_kallisto_out/abundance.tsv"
 
 
 filename <- "abundance.tsv"
@@ -48,6 +42,8 @@ import_fpkms <- function(samples) {
 
 ###condition a file paths
 
+exp1_transcript_fasta <- "/public/groups/sanfordlab/people/anjowall/projects/rtpcr_validated/shen_2014/gencode.v29lift37.basic.annotation.fa"
+
 exp1_base <- "/public/groups/sanfordlab/people/anjowall/projects/rtpcr_validated/shen_2014/kallisto/"
 
 exp1a_samples <- c("SRR536342","SRR536344","SRR536346")
@@ -72,13 +68,15 @@ exp1_fpkm_mat <- as.matrix(exp1_fpkm[,2:ncol(exp1_fpkm)])
 rownames(exp1_fpkm_mat) <- exp1_fpkm$transcript_id
 
 simulate_experiment_empirical(fpkmMat = exp1_fpkm_mat, 
-							  grouplabels=pData(bg)$group, 
-							  gtf=gtf,
-    seqpath=chr22seq, mean_rps=mean(c(exp1a_depth, exp1b_depth)), outdir='empirical_reads', seed=1247)
+							  grouplabels=c("a","b"), 
+							  fasta = exp1_transcript_fasta,
+   							  mean_rps=mean(c(exp1a_depth, exp1b_depth))/4, 
+   							  outdir='empirical_reads', 
+   							  seed=1247,
+   							  outdir="/public/groups/sanfordlab/people/anjowall/projects/rtpcr_validated/shen_2014/simulations/",
+   							  bias = "rnaf",
+   							  strand_specific = TRUE,
+   							  gzip = TRUE,
+   							  paired = TRUE)
 
 
-
-
-
-simulate_experiment(new_fasta_file, reads_per_transcript=readspertx, 
-    num_reps=c(3,3), fold_changes=fc_mat, outdir='/hive/users/anjowall/projects/polyester_exploration/polyester_out/', paired = TRUE, bias = "rnaf", strand_specific = TRUE, gzip = TRUE)
