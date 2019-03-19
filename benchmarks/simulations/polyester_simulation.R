@@ -12,7 +12,7 @@ import_fpkms <- function(samples, base_path, filename) {
 
 	for (sample in samples) {
 
-		path = paste0(base_path, sample, "/", filename)
+		path = paste0(base_path, "/", sample, "/", filename)
 		temp_df <- read.table(path, 
 			header = TRUE, 
 			sep = "\t",
@@ -37,6 +37,7 @@ import_fpkms <- function(samples, base_path, filename) {
 
 }
 
+print("Function defined . . . ")
 
 ###experiment 1 
 
