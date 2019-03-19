@@ -20,6 +20,7 @@ import_fpkms <- function(samples, base_path, filename) {
 		mutate(fpk = est_counts/eff_length) %>%
 		select(target_id, fpk) %>%
 		rename(transcript_id = target_id, !!sample := fpk)
+		print(head(temp_df))
 		df_list <- c(df_list, list(temp_df))
 
 	}
