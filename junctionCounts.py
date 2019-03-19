@@ -292,7 +292,7 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 
 					list_index_counter = 0
 
-					h5dset[index_counter - max_list_len:index_counter + 1] = all_read_info
+					h5dset[index_counter - list_index_counter:index_counter + 1] = all_read_info
 
 					index_counter += 1
 
@@ -319,7 +319,7 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 
 					list_index_counter = 0
 
-					h5dset[index_counter - max_list_len:index_counter + 1] = all_read_info
+					h5dset[index_counter - list_index_counter:index_counter + 1] = all_read_info
 
 					index_counter += 1
 
