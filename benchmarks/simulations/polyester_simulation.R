@@ -12,7 +12,7 @@ kallisto_abundance <- "/hive/users/anjowall/projects/polyester_exploration/h9esc
 
 filename <- "abundance.tsv"
 
-import_tpms <- function(samples) {
+import_est_counts <- function(samples) {
 
 	df_list = list()
 
@@ -23,16 +23,14 @@ import_tpms <- function(samples) {
 			header = TRUE, 
 			sep = "\t",
 			stringsAsFactors = FALSE) %>% 
-		mutate(sample_id = sample) %>%
-		rename(transcript_id = target_id)
-		exp1a_df_list <- c(df_list, list(temp_df))
+		select(target_id, est_counts) %>%
+		rename(transcript_id = target_id, !!sample := est_counts)
+		df_list <- c(df_list, list(temp_df))
 
 	}
 
-	mean_tpm_df <- do.call(rbind, df_list) %>%
-		group_by(transcript_id) %>% 
-		summarize(mean_tpm = mean(tpm), 
-			mean_est_counts = mean(est_counts))
+	est_counts_df <- df_list %>%
+		reduce(inner_join, by = "transcript_id")
 
 	return(mean_tpm_df)
 
@@ -65,7 +63,10 @@ exp1b_depth <- exp1b_mean_tpm %>%
 
 ## get fold changes
 
-fc_df <- 
+fc_df <- exp1a_mean_tpm %>% 
+	mutate(mean_tpm = mean_tpm_a) %>%
+	inner_join(exp1b_mean_tpm, by = "transcript_id") %>%
+	mutate(a = 1, b = )
 
 
 

@@ -273,6 +273,7 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 		h5dset = None
 		h5filename = None
 		size = None
+		h5file = None
 
 	index_counter = 0
 	list_index_counter = 0
@@ -328,7 +329,7 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 					index_counter += 1
 
 
-	return h5dset, h5filename, size
+	return h5dset, h5filename, size, h5file
 
 
 def assign_reads(read_properties, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read, bootstraps):
@@ -556,7 +557,11 @@ def bootstrap_junction_counts(junction_only_count_dict, standard_event_dict, eij
 		#strand = read["strand"]
 		#possible_strands = read["possible_strands"]
 
-		event_junction_dict_list = [[i.split(":")[0], i.split(":")[1].split(",")] for i in read[0].split("=")] if read[0] != "" else []
+		try:
+			event_junction_dict_list = [[i.split(":")[0], i.split(":")[1].split(",")] for i in read[0].split("=")] if read[0] != "" else []
+		except:
+			print read
+			sys.exit()
 		event_eij_dict_list = [[i.split(":")[0], i.split(":")[1].split(",")] for i in read[1].split("=")] if read[0] != "" else []
 		chrom = read[2]
 		strand = read[3]
@@ -993,7 +998,7 @@ def main(args, event_dict = None):
 		eij_only_count_dict_pristine = copy.deepcopy(eij_only_count_dict)
 
 
-	h5dset, h5filename, n_reads = process_reads(bam_filename, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, output_directory, sample_name, forward_read = forward_read, single_end = se, bootstraps = bootstraps)
+	h5dset, h5filename, n_reads, h5file = process_reads(bam_filename, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, output_directory, sample_name, forward_read = forward_read, single_end = se, bootstraps = bootstraps)
 
 	###get counts of each exon edge (i.e. the sum of all junctions involving that exon)
 
@@ -1035,6 +1040,9 @@ def main(args, event_dict = None):
 				get_exon_edge_counts(junction_only_count_dict_bootstrap, junction_indexed_event_dict, standard_event_dict_bootstrap)
 
 			calc_psi(standard_event_dict_bootstrap, output_directory, sample_name, gzipped, gene_jc_dict, suppress_output, bootstrap_num = i, filename_addendum = "_bootstraps", file_write_mode = "a", header = True if i == 0 else False)
+
+			h5file.close()
+			subprocess.call("rm " + h5filename, shell = True)
 
 
 
