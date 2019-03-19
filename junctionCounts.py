@@ -528,8 +528,8 @@ def assign_reads(read_properties, junction_indexed_event_dict, junction_only_cou
 
 			## convert to strings for h5py storage
 
-			event_junction_dict_list = "|".join([event + ":" + ",".join(junctions) for event, junctions in event_junction_dict.items()])
-			event_eij_dict_list = "|".join([event + ":" + ",".join(eij) for event, eij in event_eij_dict.items()])
+			event_junction_dict_list = "=".join([event + ":" + ",".join(junctions) for event, junctions in event_junction_dict.items()])
+			event_eij_dict_list = "=".join([event + ":" + ",".join(eij) for event, eij in event_eij_dict.items()])
 
 			possible_strands = ",".join(possible_strands)
 
@@ -556,8 +556,8 @@ def bootstrap_junction_counts(junction_only_count_dict, standard_event_dict, eij
 		#strand = read["strand"]
 		#possible_strands = read["possible_strands"]
 
-		event_junction_dict_list = [[i.split(":")[0], i.split(":")[1].split(",")] for i in read[0].split("|")]
-		event_eij_dict_list = [[i.split(":")[0], i.split(":")[1].split(",")] for i in read[1].split("|")]
+		event_junction_dict_list = [[i.split(":")[0], i.split(":")[1].split(",")] for i in read[0].split("=")] if read[0] != "" else []
+		event_eij_dict_list = [[i.split(":")[0], i.split(":")[1].split(",")] for i in read[1].split("=")] if read[0] != "" else []
 		chrom = read[2]
 		strand = read[3]
 		possible_strands = read[4].split(",")
