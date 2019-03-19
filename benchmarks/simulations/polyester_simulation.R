@@ -31,9 +31,15 @@ import_fpkms <- function(samples, base_path, filename) {
 
 	fragment_totals <- colSums(fpk_df[,2:ncol(fpk_df)])
 
+	print(fragment_totals)
+
 	per_million_factors <- fragment_totals/1000000
 
+	print(per_million_factors)
+
 	fpkm_df <- fpk_df/per_million_factors
+
+	print(head(fpkm_df))
 
 	return(list(fpkm_df, fragment_totals))
 
