@@ -282,7 +282,7 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 		for read in bam:
 
 			read_properties = parse_reads([read], forward_read)
-			read_info = assign_reads(read_properties, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read, bootstraps, all_read_info, list_index_counter)
+			read_info = assign_reads(read_properties, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read, bootstraps)
 
 			if bootstraps:
 
@@ -309,7 +309,7 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 		for read1, read2 in read_pair_generator(bam):
 
 			read_properties = parse_reads([read1, read2], forward_read)
-			read_info = assign_reads(read_properties, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read, bootstraps, all_read_info, list_index_counter)
+			read_info = assign_reads(read_properties, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read, bootstraps)
 
 			if bootstraps:
 

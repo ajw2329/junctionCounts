@@ -65,6 +65,8 @@ exp1b_depth <- exp1b_mean_tpm %>%
 
 ## get fold changes
 
+fc_df <- 
+
 
 
 
