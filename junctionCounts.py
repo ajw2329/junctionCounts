@@ -306,7 +306,7 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 
 			if bootstraps:
 
-				h5dset[index_counter - list_index_counter - 1:index_counter] = all_read_info[:list_index_counter]
+				h5dset[index_counter - list_index_counter - 1:index_counter-1] = all_read_info[:list_index_counter]
 
 
 
@@ -338,7 +338,7 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 
 			if bootstraps:
 
-				h5dset[index_counter - list_index_counter - 1:index_counter] = all_read_info[:list_index_counter]
+				h5dset[index_counter - list_index_counter - 1:index_counter-1] = all_read_info[:list_index_counter]
 
 
 	return h5dset, h5filename, size, h5file

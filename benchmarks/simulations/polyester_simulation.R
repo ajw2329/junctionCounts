@@ -17,8 +17,8 @@ import_fpkms <- function(samples) {
 			header = TRUE, 
 			sep = "\t",
 			stringsAsFactors = FALSE) %>% 
-		select(target_id, est_counts) %>%
 		mutate(fpk = est_counts/eff_length) %>%
+		select(target_id, fpk) %>%
 		rename(transcript_id = target_id, !!sample := fpk)
 		df_list <- c(df_list, list(temp_df))
 
