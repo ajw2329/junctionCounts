@@ -28,13 +28,15 @@ import_fpkms <- function(samples, base_path, filename) {
 
 	print(head(count_df))
 
-	fragment_totals <- colSums(count_df[,3:ncol(fpk_df)])
+	fragment_totals <- colSums(count_df[,3:ncol(count_df)])
 
 	print(fragment_totals)
 
 	per_million_factors <- fragment_totals/1000000
 
 	print(per_million_factors)
+
+	fpk_mat <- as.matrix(count_df[,3:ncol(count_df)])
 
 	fpkm_df <- fpk_df/per_million_factors
 
