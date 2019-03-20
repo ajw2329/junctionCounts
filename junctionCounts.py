@@ -558,83 +558,93 @@ def assign_reads(read_properties, junction_indexed_event_dict, junction_only_cou
 
 def bootstrap_junction_counts(junction_only_count_dict, standard_event_dict, eij_only_count_dict, junction_indexed_event_dict, eij_indexed_event_dict, n_reads, forward_read, h5dset):
 
+	index_collection = []
+
 	for n in range(0,int(n_reads)):
 
-		read = h5dset[randint(0,n_reads - 1)].split("&")
+		index = randint(0,n_reads - 1)
+		index_collection.append(index)
 
-		#minimal_candidate_isoform_list = read["minimal_candidate_isoform_list"]
-		#event_junction_dict = read["junctions"]
-		#event_eij_dict = read["eij"]
-		#chrom = read["chrom"]
-		#strand = read["strand"]
-		#possible_strands = read["possible_strands"]
+		if len(index_collection) == 1000000 or n == n_reads - 1:
 
-		try:
-			event_junction_dict_list = [[i.split(":")[0], i.split(":")[1].split(",")] for i in read[0].split("=")] if read[0] != "" else []
-		except:
-			print read
-			sys.exit()
+			read_dump = h5dset[index_collection]
 
-		try:
-			event_eij_dict_list = [[i.split(":")[0], i.split(":")[1].split(",")] for i in read[1].split("=")] if read[1] != "" else []
-		except:
-			print read
-			sys.exit()
-
-		chrom = read[2]
-		strand = read[3]
-		possible_strands = read[4].split(",")
+			for i in read_dump:
+				read = i.split("&")
 
 
-		if forward_read != "unstranded":
+			try:
+				event_junction_dict_list = [[i.split(":")[0], i.split(":")[1].split(",")] for i in read[0].split("=")] if read[0] != "" else []
+			except:
+				print read
+				sys.exit()
 
-			for j in event_junction_dict_list:
+			try:
+				event_eij_dict_list = [[i.split(":")[0], i.split(":")[1].split(",")] for i in read[1].split("=")] if read[1] != "" else []
+			except:
+				print read
+				sys.exit()
 
-				identifier = j[0].split("_")				
-				event_id = "_".join(identifier[0:-1])
-				event_form = identifier[-1]
-
-				for junction in j[1]:
-
-					standard_event_dict[chrom][strand][event_id][event_form + "_junction_counts"][junction] += 1
+			chrom = read[2]
+			strand = read[3]
+			possible_strands = read[4].split(",")
 
 
-			for j in event_eij_dict_list:
+			if forward_read != "unstranded":
 
-				identifier = j[0].split("_")				
-				event_id = "_".join(identifier[0:-1])
-				event_form = identifier[-1]
+				for j in event_junction_dict_list:
 
-				for eij in j[1]:
+					identifier = j[0].split("_")				
+					event_id = "_".join(identifier[0:-1])
+					event_form = identifier[-1]
 
-					standard_event_dict[chrom][strand][event_id][event_form + "_junction_counts"][eij] += 1
+					for junction in j[1]:
 
+						standard_event_dict[chrom][strand][event_id][event_form + "_junction_counts"][junction] += 1
+
+
+				for j in event_eij_dict_list:
+
+					identifier = j[0].split("_")				
+					event_id = "_".join(identifier[0:-1])
+					event_form = identifier[-1]
+
+					for eij in j[1]:
+
+						standard_event_dict[chrom][strand][event_id][event_form + "_junction_counts"][eij] += 1
+
+			else:
+
+				for j in event_junction_dict_list:
+
+					identifier = j[0].split("_")				
+					event_id = "_".join(identifier[0:-1])
+					event_form = identifier[-1]
+
+					for test_strand in possible_strands:
+
+						if event_id in standard_event_dict[chrom][test_strand]:
+
+							standard_event_dict[chrom][test_strand][event_id][event_form + "_junction_counts"][junction] += 1
+
+
+				for eij in event_eij_dict_list:
+
+					identifier = j[0].split("_")				
+					event_id = "_".join(identifier[0:-1])
+					event_form = identifier[-1]
+
+					for test_strand in possible_strands:
+
+						if event_id in standard_event_dict[chrom][test_strand]:
+
+							standard_event_dict[chrom][test_strand][event_id][event_form + "_junction_counts"][eij] += 1
+
+			index_collection = []
+			
 		else:
 
-			for j in event_junction_dict_list:
-
-				identifier = j[0].split("_")				
-				event_id = "_".join(identifier[0:-1])
-				event_form = identifier[-1]
-
-				for test_strand in possible_strands:
-
-					if event_id in standard_event_dict[chrom][test_strand]:
-
-						standard_event_dict[chrom][test_strand][event_id][event_form + "_junction_counts"][junction] += 1
-
-
-			for eij in event_eij_dict_list:
-
-				identifier = j[0].split("_")				
-				event_id = "_".join(identifier[0:-1])
-				event_form = identifier[-1]
-
-				for test_strand in possible_strands:
-
-					if event_id in standard_event_dict[chrom][test_strand]:
-
-						standard_event_dict[chrom][test_strand][event_id][event_form + "_junction_counts"][eij] += 1
+			continue
 
 
 
