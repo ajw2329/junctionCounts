@@ -60,7 +60,7 @@ print("Function defined . . . ")
 
 ###condition a file paths
 
-exp1_transcript_fasta <- "/public/groups/sanfordlab/people/anjowall/projects/rtpcr_validated/zhang_2014/public/groups/sanfordlab/people/anjowall/projects/rtpcr_validated/zhang_2014"
+exp1_transcript_fasta <- "/public/groups/sanfordlab/people/anjowall/projects/rtpcr_validated/zhang_2014/gencode.vM20.basic.annotation.one_col.fa"
 
 exp1_base <- "/public/groups/sanfordlab/people/anjowall/projects/rtpcr_validated/zhang_2014/kallisto/"
 
