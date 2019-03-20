@@ -306,7 +306,7 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 
 			if bootstraps:
 
-				h5dset[index_counter - list_index_counter - 1:index_counter-1] = all_read_info[:list_index_counter]
+				h5dset[index_counter - list_index_counter:index_counter] = all_read_info[:list_index_counter]
 
 
 
@@ -338,7 +338,7 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 
 			if bootstraps:
 
-				h5dset[index_counter - list_index_counter - 1:index_counter-1] = all_read_info[:list_index_counter]
+				h5dset[index_counter - list_index_counter:index_counter] = all_read_info[:list_index_counter]
 
 
 	return h5dset, h5filename, size, h5file
@@ -1048,6 +1048,8 @@ def main(args, event_dict = None):
 
 		for i in range(0, n_bootstraps):
 
+			print "{0}: {1} seconds elapsed. Beginning bootstrapping round {}.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)), str(i))
+
 			junction_only_count_dict_bootstrap = copy.deepcopy(junction_only_count_dict_pristine)
 			standard_event_dict_bootstrap = copy.deepcopy(standard_event_dict_pristine)
 			eij_only_count_dict_bootstrap = copy.deepcopy(eij_only_count_dict_pristine)
@@ -1059,8 +1061,11 @@ def main(args, event_dict = None):
 
 			calc_psi(standard_event_dict_bootstrap, output_directory, sample_name, gzipped, gene_jc_dict, suppress_output, bootstrap_num = i, filename_addendum = "_bootstraps", file_write_mode = "a", header = True if i == 0 else False)
 
-			h5file.close()
-			subprocess.call("rm " + h5filename, shell = True)
+			print "{0}: {1} seconds elapsed. Bootstrapping round {} complete.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)), str(i))
+
+		print "{0}: {1} seconds elapsed. Bootstrapping complete.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+		h5file.close()
+		subprocess.call("rm " + h5filename, shell = True)
 
 
 
