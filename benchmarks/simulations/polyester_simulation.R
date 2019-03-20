@@ -36,9 +36,13 @@ import_fpkms <- function(samples, base_path, filename) {
 
 	print(per_million_factors)
 
-	fpk_mat <- as.matrix(count_df[,3:ncol(count_df)])
+	fpk_df <- count_df %>%
+			   mutate_at(vars(contains("SRR")), funs(./eff_length)) %>%
+			   select(-eff_length)
 
-	fpkm_df <- fpk_df/per_million_factors
+	fpkm_df <- fpk_df
+
+	fpkm_df[,2:ncol(fpkm_df)] <- fpkm_df[,2:ncol(fpkm_df)]/per_million_factors
 
 	print(head(fpkm_df))
 
