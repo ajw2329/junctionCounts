@@ -12,7 +12,7 @@ import numpy as np
 from ncls import NCLS
 from random import randint
 import pysam
-from collections import defaultdict
+from collections import defaultdict,Counter
 import h5py
 
 
@@ -567,9 +567,29 @@ def bootstrap_junction_counts(junction_only_count_dict, standard_event_dict, eij
 
 		if len(index_collection) == 1000000 or n == n_reads - 1:
 
-			index_collection.sort()
+			index_dict = Counter()
 
-			read_dump = h5dset[index_collection]
+			for i in index_collection:
+				index_dict[i] += 1
+
+			unique_indices = []
+
+			read_dump = []
+
+			### the code below is to deal with the fact that bootstrapping creates duplicate keys and h5py does not support indexing with duplicates
+
+			while len(index_dict) > 0:
+				for i in index_dict.keys():
+					if index_dict[i] > 1:
+						index_dict[i] -= 1
+					else:
+						unique_indices.append(i)
+						del index_dict[i]
+
+				unique_indices.sort()
+				read_dump += list(h5dset[unique_indices])
+				unique_indices = []
+
 
 			for i in read_dump:
 				read = i.split("&")
