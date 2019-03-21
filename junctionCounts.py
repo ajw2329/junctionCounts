@@ -567,6 +567,8 @@ def bootstrap_junction_counts(junction_only_count_dict, standard_event_dict, eij
 
 		if len(index_collection) == 1000000 or n == n_reads - 1:
 
+			index_collection.sort()
+
 			read_dump = h5dset[index_collection]
 
 			for i in read_dump:
@@ -641,7 +643,7 @@ def bootstrap_junction_counts(junction_only_count_dict, standard_event_dict, eij
 							standard_event_dict[chrom][test_strand][event_id][event_form + "_junction_counts"][eij] += 1
 
 			index_collection = []
-			
+
 		else:
 
 			continue
