@@ -133,10 +133,12 @@ rm(condition_2)
 
 dpsi_gt_measured <- all_condition_dpsi_df_actual %>% 
   left_join(gt_dpsi, by = "event_id") %>%
+  separate(event_id, c("event_type"), remove = FALSE, extra = "drop")
+
+fp_tp <- dpsi_gt_measured %>%
   mutate(fp = sign(mid_dpsi) != 0 & sign(mid_dpsi) != sign(gt_dpsi),
          tp = sign(mid_dpsi) != 0 & sign(mid_dpsi) == sign(gt_dpsi)) %>%
-  filter(!is.na(fp), !(!fp & !tp)) %>%
-  separate(event_id, c("event_type"), remove = FALSE, extra = "drop")
+  filter(!is.na(fp), !(!fp & !tp))
 
 
 thresholds <- data.frame(inner_dpsi_thresh = seq(0,1,0.025), 

@@ -277,6 +277,7 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 
 	else:
 		size = None
+		all_read_info = []
 
 	list_index_counter = 0
 
