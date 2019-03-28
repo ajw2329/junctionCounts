@@ -1,0 +1,7 @@
+rep_id	group
+sample_01	a
+sample_02	a
+sample_03	a
+sample_04	b
+sample_05	b
+sample_06	b

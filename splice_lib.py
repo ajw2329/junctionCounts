@@ -310,6 +310,10 @@ def get_exon_subset(feature_exons, genomic_start, genomic_end):
 def calc_length_exon_list(exon_list):
     '''Takes a given list of exons (e.g. [[1000,1100],[2000,2100]]) where each sublist contains the start/stop position of each exon (1-based) and finds the total exonic length of the feature'''
 
+    if len(exon_list) == 0:
+
+        return 0
+
     length = 0
 
     exon_list = [map(int, i) for i in exon_list]
@@ -1205,6 +1209,48 @@ def get_transcript_junction_distances(standard_transcript_dict):
 
 
 
+def get_transcript_junction_percentiles(standard_transcript_dict):
+
+    junction_percentiles = {}
+
+
+    for transcript in standard_transcript_dict:
+
+        chrom = standard_transcript_dict[transcript]["chrom"]
+        strand = standard_transcript_dict[transcript]["strand"]
+
+        total_length = calc_length_exon_list(standard_transcript_dict[transcript]["exons"])
+
+        junction_percentiles[transcript] = {}
+
+
+        def add_junction_percentile(i, junction):
+
+                if strand == "+":
+
+                    percentile = int(round(100*float(calc_length_exon_list(standard_transcript_dict[transcript]["exons"][0:i+1]))/total_length))
+
+                else:
+
+                    percentile = int(round(100*float(calc_length_exon_list(standard_transcript_dict[transcript]["exons"][i+1:]))/total_length))
+
+                junction_percentiles[transcript][junction] = percentile
+
+
+        for i, exon in enumerate(standard_transcript_dict[transcript]["exons"]):
+
+            if i < len(standard_transcript_dict[transcript]["exons"]) - 1:
+
+                junction = chrom + "_" + str(exon[1]) + "_" + str(standard_transcript_dict[transcript]["exons"][i+1][0]) + "_" + strand
+
+                add_junction_percentile(i, junction)
+
+
+    return junction_percentiles
+
+
+
+
 def sort_transcript_dict_exons(transcript_dict):
 
     for transcript in transcript_dict:
@@ -1353,11 +1399,27 @@ def collapse_redundant_junction_events(standard_event_dict, outdir):
 
         if len(junction_set_dict[key]) > 1:
 
+            included_form_transcripts = set()
+            excluded_form_transcripts = set()
+            included_exons_left_outer_coords = []
+            included_exons_right_outer_coords = []
+            excluded_exons_left_outer_coords = []
+            excluded_exons_right_outer_coords = []
+
             new_key = ",".join(junction_set_dict[key])
 
             event_types = []
 
             for event in junction_set_dict[key]:
+
+                included_form_transcripts = included_form_transcripts + set(standard_event_dict[event]["included_form_transcripts"])
+                excluded_form_transcripts = excluded_form_transcripts + set(standard_event_dict[event]["excluded_form_transcripts"])
+
+                included_exons_left_outer_coords.append(standard_event_dict[event]["included_exons"][0][0])
+                included_exons_right_outer_coords.append(standard_event_dict[event]["included_exons"][-1][-1])
+
+                excluded_exons_left_outer_coords.append(standard_event_dict[event]["excluded_exons"][0][0])
+                excluded_exons_right_outer_coords.append(standard_event_dict[event]["excluded_exons"][-1][-1])
 
                 if standard_event_dict[event]["event_type"] not in event_types:
 
@@ -1372,6 +1434,15 @@ def collapse_redundant_junction_events(standard_event_dict, outdir):
             else:
 
                 standard_event_dict[new_key] = copy.deepcopy(standard_event_dict[junction_set_dict[key][1]])
+
+            standard_event_dict[new_key]["included_form_transcripts"] = list(included_form_transcripts)
+            standard_event_dict[new_key]["excluded_form_transcripts"] = list(excluded_form_transcripts)
+
+            standard_event_dict[new_key]["included_exons"][0][0] = max(included_exons_left_outer_coords)
+            standard_event_dict[new_key]["included_exons"][-1][-1] = min(included_exons_right_outer_coords)
+
+            standard_event_dict[new_key]["excluded_exons"][0][0] = max(excluded_exons_left_outer_coords)
+            standard_event_dict[new_key]["excluded_exons"][-1][-1] = min(excluded_exons_right_outer_coords)
 
             for old_key in junction_set_dict[key]:
 

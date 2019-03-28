@@ -12,9 +12,7 @@ import numpy as np
 from ncls import NCLS
 from random import randint
 import pysam
-from collections import defaultdict,Counter
-import h5py
-
+from collections import defaultdict
 
 
 def create_eij_ncls_dict(standard_event_dict):
@@ -93,10 +91,26 @@ def read_pair_generator(bam, region_string = None):
 
 def parse_reads(read_list, forward_read):
 	'''
-		Takes as input a read or read pair in a list of pysam AlignedSegments, returns a dictionary containing a list of junctions (where a junction is described by the chromosome, the start/end position, and the strand, all joined as a string), as well as (separately) the chrom and strand information.  Some code derived from find_introns_slow() in pysam.
+		Takes as input a read or read pair in a list of pysam AlignedSegments, returns a dictionary containing a list of junctions (where a junction is described by the chromosome, the start/end position, and the strand, all joined as a string), as well as (separately) the chrom and strand information.  Some code derived from find_introns() in pysam.
 	'''
 
-	chrom_list = list(set([i.reference_name for i in read_list]))
+	try:
+		chrom_list = list(set([i.reference_name for i in read_list]))
+	except AttributeError:
+		print "WHOOPS"
+		print read_list
+
+		for read in read_list:
+
+			if read:
+
+				print read.is_proper_pair
+				print read.is_secondary
+				print read.is_supplementary
+				print read.query_name
+				print read.reference_name
+
+		return None
 
 	if len(chrom_list) > 1: ##implies some sort of chimeric read - not currently handled
 
@@ -245,15 +259,7 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 
 	bam = pysam.AlignmentFile(bam_filename, 'rb')
 
-	max_list_len = 1000000
-	all_read_info = [None]*max_list_len
-
-
 	if bootstraps:
-
-		dt = h5py.special_dtype(vlen=str)
-		h5filename = output_directory + '/' + sample_name + '_bootstrap_data.h5'
-		h5file=h5py.File(h5filename,'w')
 
 		idxstats = pysam.idxstats(bam_filename).split("\n")
 
@@ -265,17 +271,13 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 			if len(entry) == 4:
 				read_count += int(entry[2])
 
-		size = read_count if single_end else read_count/2.0
+		size = read_count if single_end else read_count/2
 
-		h5dset = h5file.create_dataset('bootstraps', (size,), dtype=dt, chunks = True)
+		all_read_info = [None]*size
 
 	else:
-		h5dset = None
-		h5filename = None
 		size = None
-		h5file = None
 
-	index_counter = 0
 	list_index_counter = 0
 
 	if single_end:
@@ -283,32 +285,16 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 		for read in bam:
 
 			read_properties = parse_reads([read], forward_read)
+
+			if not read_properties:
+				continue
+
 			read_info = assign_reads(read_properties, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read, bootstraps)
 
 			if bootstraps:
 
 				all_read_info[list_index_counter] = read_info
-
-				if list_index_counter > max_list_len - 1:
-
-					h5dset[index_counter - list_index_counter:index_counter + 1] = all_read_info
-
-					list_index_counter = 0
-
-					index_counter += 1
-
-				else:
-
-					index_counter += 1
-					list_index_counter += 1
-
-		else:
-
-			if bootstraps:
-
-				h5dset[index_counter - list_index_counter:index_counter] = all_read_info[:list_index_counter]
-
-
+				list_index_counter += 1
 
 
 	else:
@@ -316,32 +302,19 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 		for read1, read2 in read_pair_generator(bam):
 
 			read_properties = parse_reads([read1, read2], forward_read)
+
+			if not read_properties:
+				continue
+
 			read_info = assign_reads(read_properties, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read, bootstraps)
 
 			if bootstraps:
 
 				all_read_info[list_index_counter] = read_info
-
-				if list_index_counter == max_list_len - 1:
-
-					h5dset[index_counter - list_index_counter:index_counter + 1] = all_read_info
-
-					list_index_counter = 0
-
-					index_counter += 1
-
-				else:
-					list_index_counter += 1
-					index_counter += 1
-
-		else:
-
-			if bootstraps:
-
-				h5dset[index_counter - list_index_counter:index_counter] = all_read_info[:list_index_counter]
+				list_index_counter += 1
 
 
-	return h5dset, h5filename, size, h5file
+	return all_read_info, size
 
 
 def assign_reads(read_properties, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read, bootstraps):
@@ -556,117 +529,73 @@ def assign_reads(read_properties, junction_indexed_event_dict, junction_only_cou
 			return "&".join([event_junction_dict_list, event_eij_dict_list, chrom, strand, possible_strands])
 
 
-def bootstrap_junction_counts(junction_only_count_dict, standard_event_dict, eij_only_count_dict, junction_indexed_event_dict, eij_indexed_event_dict, n_reads, forward_read, h5dset):
+def bootstrap_junction_counts(junction_only_count_dict, standard_event_dict, eij_only_count_dict, junction_indexed_event_dict, eij_indexed_event_dict, n_reads, forward_read, all_read_info):
 
-	index_collection = []
 
 	for n in range(0,int(n_reads)):
 
 		index = randint(0,n_reads - 1)
-		index_collection.append(index)
 
-		if len(index_collection) == 1000000 or n == n_reads - 1:
+		read = all_read_info[index].split("&")
 
-			index_dict = Counter()
+		event_junction_dict_list = [[i.split(":")[0], i.split(":")[1].split(",")] for i in read[0].split("=")] if read[0] != "" else []
+		event_eij_dict_list = [[i.split(":")[0], i.split(":")[1].split(",")] for i in read[1].split("=")] if read[1] != "" else []
 
-			for i in index_collection:
-				index_dict[i] += 1
-
-			unique_indices = []
-
-			read_dump = []
-
-			### the code below is to deal with the fact that bootstrapping creates duplicate keys and h5py does not support indexing with duplicates
-
-			while len(index_dict) > 0:
-				for i in index_dict.keys():
-					if index_dict[i] > 1:
-						index_dict[i] -= 1
-					else:
-						unique_indices.append(i)
-						del index_dict[i]
-
-				unique_indices.sort()
-				read_dump += list(h5dset[unique_indices])
-				unique_indices = []
+		chrom = read[2]
+		strand = read[3]
+		possible_strands = read[4].split(",")
 
 
-			for i in read_dump:
-				read = i.split("&")
+		if forward_read != "unstranded":
+
+			for j in event_junction_dict_list:
+
+				identifier = j[0].split("_")				
+				event_id = "_".join(identifier[0:-1])
+				event_form = identifier[-1]
+
+				for junction in j[1]:
+
+					standard_event_dict[chrom][strand][event_id][event_form + "_junction_counts"][junction] += 1
 
 
-			try:
-				event_junction_dict_list = [[i.split(":")[0], i.split(":")[1].split(",")] for i in read[0].split("=")] if read[0] != "" else []
-			except:
-				print read
-				sys.exit()
+			for j in event_eij_dict_list:
 
-			try:
-				event_eij_dict_list = [[i.split(":")[0], i.split(":")[1].split(",")] for i in read[1].split("=")] if read[1] != "" else []
-			except:
-				print read
-				sys.exit()
+				identifier = j[0].split("_")				
+				event_id = "_".join(identifier[0:-1])
+				event_form = identifier[-1]
 
-			chrom = read[2]
-			strand = read[3]
-			possible_strands = read[4].split(",")
+				for eij in j[1]:
 
-
-			if forward_read != "unstranded":
-
-				for j in event_junction_dict_list:
-
-					identifier = j[0].split("_")				
-					event_id = "_".join(identifier[0:-1])
-					event_form = identifier[-1]
-
-					for junction in j[1]:
-
-						standard_event_dict[chrom][strand][event_id][event_form + "_junction_counts"][junction] += 1
-
-
-				for j in event_eij_dict_list:
-
-					identifier = j[0].split("_")				
-					event_id = "_".join(identifier[0:-1])
-					event_form = identifier[-1]
-
-					for eij in j[1]:
-
-						standard_event_dict[chrom][strand][event_id][event_form + "_junction_counts"][eij] += 1
-
-			else:
-
-				for j in event_junction_dict_list:
-
-					identifier = j[0].split("_")				
-					event_id = "_".join(identifier[0:-1])
-					event_form = identifier[-1]
-
-					for test_strand in possible_strands:
-
-						if event_id in standard_event_dict[chrom][test_strand]:
-
-							standard_event_dict[chrom][test_strand][event_id][event_form + "_junction_counts"][junction] += 1
-
-
-				for eij in event_eij_dict_list:
-
-					identifier = j[0].split("_")				
-					event_id = "_".join(identifier[0:-1])
-					event_form = identifier[-1]
-
-					for test_strand in possible_strands:
-
-						if event_id in standard_event_dict[chrom][test_strand]:
-
-							standard_event_dict[chrom][test_strand][event_id][event_form + "_junction_counts"][eij] += 1
-
-			index_collection = []
+					standard_event_dict[chrom][strand][event_id][event_form + "_junction_counts"][eij] += 1
 
 		else:
 
-			continue
+			for j in event_junction_dict_list:
+
+				identifier = j[0].split("_")				
+				event_id = "_".join(identifier[0:-1])
+				event_form = identifier[-1]
+
+				for test_strand in possible_strands:
+
+					if event_id in standard_event_dict[chrom][test_strand]:
+
+						standard_event_dict[chrom][test_strand][event_id][event_form + "_junction_counts"][junction] += 1
+
+
+			for eij in event_eij_dict_list:
+
+				identifier = j[0].split("_")				
+				event_id = "_".join(identifier[0:-1])
+				event_form = identifier[-1]
+
+				for test_strand in possible_strands:
+
+					if event_id in standard_event_dict[chrom][test_strand]:
+
+						standard_event_dict[chrom][test_strand][event_id][event_form + "_junction_counts"][eij] += 1
+
 
 
 
@@ -1048,7 +977,7 @@ def main(args, event_dict = None):
 		eij_only_count_dict_pristine = copy.deepcopy(eij_only_count_dict)
 
 
-	h5dset, h5filename, n_reads, h5file = process_reads(bam_filename, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, output_directory, sample_name, forward_read = forward_read, single_end = se, bootstraps = bootstraps)
+	all_read_info, n_reads = process_reads(bam_filename, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, output_directory, sample_name, forward_read = forward_read, single_end = se, bootstraps = bootstraps)
 
 	###get counts of each exon edge (i.e. the sum of all junctions involving that exon)
 
@@ -1086,7 +1015,7 @@ def main(args, event_dict = None):
 			standard_event_dict_bootstrap = copy.deepcopy(standard_event_dict_pristine)
 			eij_only_count_dict_bootstrap = copy.deepcopy(eij_only_count_dict_pristine)
 
-			bootstrap_junction_counts(junction_only_count_dict_bootstrap, standard_event_dict_bootstrap, eij_only_count_dict_bootstrap, junction_indexed_event_dict, eij_indexed_event_dict,  n_reads, forward_read, h5dset)
+			bootstrap_junction_counts(junction_only_count_dict_bootstrap, standard_event_dict_bootstrap, eij_only_count_dict_bootstrap, junction_indexed_event_dict, eij_indexed_event_dict,  n_reads, forward_read, all_read_info)
 
 			if not args.enable_edge_use:
 				get_exon_edge_counts(junction_only_count_dict_bootstrap, junction_indexed_event_dict, standard_event_dict_bootstrap)
@@ -1096,9 +1025,6 @@ def main(args, event_dict = None):
 			print "{0}: {1} seconds elapsed. Bootstrapping round {2} complete.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)), str(i))
 
 		print "{0}: {1} seconds elapsed. Bootstrapping complete.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
-		h5file.close()
-		subprocess.call("rm " + h5filename, shell = True)
-
 
 
 	print "{0}: {1} seconds elapsed. junctionCounts complete.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
