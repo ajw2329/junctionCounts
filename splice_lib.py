@@ -1412,8 +1412,8 @@ def collapse_redundant_junction_events(standard_event_dict, outdir):
 
             for event in junction_set_dict[key]:
 
-                included_form_transcripts = included_form_transcripts + set(standard_event_dict[event]["included_form_transcripts"])
-                excluded_form_transcripts = excluded_form_transcripts + set(standard_event_dict[event]["excluded_form_transcripts"])
+                included_form_transcripts = included_form_transcripts.union(set(standard_event_dict[event]["included_form_transcripts"]))
+                excluded_form_transcripts = excluded_form_transcripts.union(set(standard_event_dict[event]["excluded_form_transcripts"]))
 
                 included_exons_left_outer_coords.append(standard_event_dict[event]["included_exons"][0][0])
                 included_exons_right_outer_coords.append(standard_event_dict[event]["included_exons"][-1][-1])
