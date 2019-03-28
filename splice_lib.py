@@ -1382,12 +1382,15 @@ def collapse_redundant_junction_events(standard_event_dict, outdir):
         flat_joined_included_jl = "_".join([str(i) for j in standard_event_dict[event]["included_junctions"] for i in j])
         flat_joined_excluded_jl = "_".join([str(i) for j in standard_event_dict[event]["excluded_junctions"] for i in j])
 
+        flat_joined_included_eij = "_".join(map(str, standard_event_dict[event]["included_ei_junctions"]))
+        flat_joined_excluded_eij = "_".join(map(str, standard_event_dict[event]["excluded_ei_junctions"]))
+
         chrom = standard_event_dict[event]["chrom"]
         strand = standard_event_dict[event]["strand"]
 
-        if flat_joined_included_jl != "" and flat_joined_excluded_jl != "":
+        if (flat_joined_included_jl != "" or flat_joined_included_eij != "") and (flat_joined_excluded_jl != "" or flat_joined_excluded_eij != ""):
 
-            key = chrom + "_" + flat_joined_included_jl + "_" +  flat_joined_excluded_jl + "_" + strand
+            key = chrom + "_" + flat_joined_included_jl + "|" + flat_joined_included_eij + ":" +  flat_joined_excluded_jl + "|" + flat_joined_excluded_eij + "_" + strand
 
             if key not in junction_set_dict:
 
