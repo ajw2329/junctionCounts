@@ -773,11 +773,6 @@ def complete_event_dict(standard_event_dict, suppress_unique_edges = False, supp
 
         if not suppress_unique_edges:
 
-            included_edges = []
-            excluded_edges = []
-
-            for exon in standard_event_dict[event]["included_exons"]
-
             included_unique_edges, excluded_unique_edges = get_unique_edges(included_exons, excluded_exons)
 
             standard_event_dict[event]["included_unique_edges"] = included_unique_edges[:]
