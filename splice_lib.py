@@ -713,8 +713,8 @@ def get_edges(exons):
 
 def get_unique_edges(included_exons, excluded_exons):
 
-    included_edges = get_edges(included_edges)
-    excluded_edges = get_edges(excluded_edges)
+    included_edges = get_edges(included_exons)
+    excluded_edges = get_edges(excluded_exons)
 
     included_unique_edges = list(set(included_edges) - set(excluded_edges))
     excluded_unique_edges = list(set(excluded_edges) - set(included_edges))
