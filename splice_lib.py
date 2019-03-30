@@ -688,6 +688,41 @@ def assess_event_types_chrom_strand(standard_event_dict):
     return event_type_counts
 
 
+def get_edges(exons):
+
+    edge_list = []
+
+    for exon in exons:
+
+        for i, edge in enumerate(exon):
+
+            if i == 0:
+
+                edge_list.append("left_" + str(edge))
+
+            elif i == 1:
+
+                edge_list.append("right_" + str(edge))
+
+            else:
+
+                sys.exit("Exon list element has more than two entries.  Exiting . . . ")
+
+    return edge_list
+
+
+def get_unique_edges(included_exons, excluded_exons):
+
+    included_edges = get_edges(included_edges)
+    excluded_edges = get_edges(excluded_edges)
+
+    included_unique_edges = list(set(included_edges) - set(excluded_edges))
+    excluded_unique_edges = list(set(excluded_edges) - set(included_edges))
+
+    return included_unique_edges, excluded_unique_edges
+    
+
+
 def complete_event_dict(standard_event_dict, suppress_unique_edges = False, suppress_eij = False, no_ends = True, inform_using_ri_events = True):
 
     '''
@@ -738,8 +773,12 @@ def complete_event_dict(standard_event_dict, suppress_unique_edges = False, supp
 
         if not suppress_unique_edges:
 
-            included_unique_edges = list(set([j for i in standard_event_dict[event]["included_exons"] for j in i]) - set([j for i in standard_event_dict[event]["excluded_exons"] for j in i]))
-            excluded_unique_edges = list(set([j for i in standard_event_dict[event]["excluded_exons"] for j in i]) - set([j for i in standard_event_dict[event]["included_exons"] for j in i]))
+            included_edges = []
+            excluded_edges = []
+
+            for exon in standard_event_dict[event]["included_exons"]
+
+            included_unique_edges, excluded_unique_edges = get_unique_edges(included_exons, excluded_exons)
 
             standard_event_dict[event]["included_unique_edges"] = included_unique_edges[:]
             standard_event_dict[event]["excluded_unique_edges"] = excluded_unique_edges[:]
@@ -750,8 +789,8 @@ def complete_event_dict(standard_event_dict, suppress_unique_edges = False, supp
                 if (standard_event_dict[event]["event_type"] in ["AF", "MF", "CF"] and standard_event_dict[event]["strand"] == "+") or (standard_event_dict[event]["event_type"] in ["AL", "ML", "CL"] and standard_event_dict[event]["strand"] == "-"):
 
                     try:
-                        del included_unique_edges[included_unique_edges.index(standard_event_dict[event]["included_exons"][0][0])]
-                        del excluded_unique_edges[excluded_unique_edges.index(standard_event_dict[event]["excluded_exons"][0][0])]
+                        del included_unique_edges[included_unique_edges.index("left_" + str(standard_event_dict[event]["included_exons"][0][0]))]
+                        del excluded_unique_edges[excluded_unique_edges.index("left_" + str(standard_event_dict[event]["excluded_exons"][0][0]))]
                     except ValueError:
                         print "Possible cross-mapping failure or other event-type definition failure - no unique edges found for at least one form in event", event
                         print included_unique_edges
@@ -762,8 +801,8 @@ def complete_event_dict(standard_event_dict, suppress_unique_edges = False, supp
                 if (standard_event_dict[event]["event_type"] in ["AF", "MF", "CF"] and standard_event_dict[event]["strand"] == "-") or (standard_event_dict[event]["event_type"] in ["AL", "ML", "CL"] and standard_event_dict[event]["strand"] == "+"):
 
                     try:
-                        del included_unique_edges[included_unique_edges.index(standard_event_dict[event]["included_exons"][-1][-1])]
-                        del excluded_unique_edges[excluded_unique_edges.index(standard_event_dict[event]["excluded_exons"][-1][-1])]
+                        del included_unique_edges[included_unique_edges.index("right_" + str(standard_event_dict[event]["included_exons"][-1][-1]))]
+                        del excluded_unique_edges[excluded_unique_edges.index("right_" + str(standard_event_dict[event]["excluded_exons"][-1][-1]))]
                     except ValueError:
                         print "Possible cross-mapping failure or other event-type definition failure - no unique edges found for at least one form in event", event
                         print included_unique_edges

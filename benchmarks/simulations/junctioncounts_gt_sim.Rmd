@@ -40,8 +40,7 @@ all_counts <- read.table("/home/andrew/projects/rnaseq_tools/junctionCounts/benc
                          sep = "\t",
                          stringsAsFactors = FALSE,
                          header = TRUE) %>% 
-  left_join(sample_info, by = "sample_name") %>%
-  filter(sample_name != "sample_05")
+  left_join(sample_info, by = "sample_name")
 
 sample_01_end_corrected <- read.table("/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/sample_01_count_psi_outfile.tsv",
                                       sep = "\t",
@@ -151,9 +150,9 @@ thresholds_full <- thresholds %>%
          dpsi_span_thresh)
 
 
-fp_rate <- apply(thresholds_full, 1, function(x, df) df %>% filter(!grepl("F|L|AB", event_id)) %>%
+fp_rate <- apply(thresholds_full, 1, function(x, df) df %>% 
         filter(abs(inner_dpsi) >= x[1], min_jc_comparison >= x[2], span_dpsi <= x[3]) %>%
-        summarize(fp_rate = mean(fp)) %>% pull(fp_rate), df = dpsi_gt_measured)
+        summarize(fp_rate = mean(fp)) %>% pull(fp_rate), df = fp_tp)
 
 thresholds_fp_rate <- cbind(thresholds_full, data.frame(fp_rate = fp_rate))
 
@@ -165,7 +164,7 @@ thresholds_fp_rate %>% group_by(min_jc_comparison_thresh) %>% summarize(fp_rate_
 
 thresholds_fp_rate %>% group_by(inner_dpsi_thresh) %>% summarize(fp_rate_mean = mean(fp_rate, na.rm = TRUE)) %>% ggplot(aes(x = inner_dpsi_thresh, y = fp_rate_mean)) + geom_point()
 
-thresholds_fp_rate %>% select(-dpsi_span_thresh) %>% group_by(inner_dpsi_thresh, min_jc_comparison_thresh) %>% summarize(mean_fp_rate = mean(fp_rate, na.rm = TRUE)) %>% ungroup() %>% ggplot(aes(x = min_jc_comparison_thresh, y = inner_dpsi_thresh, fill = mean_fp_rate, col = mean_fp_rate <= 0.05)) + geom_tile() + scale_fill_viridis_c()
+thresholds_fp_rate %>% filter(inner_dpsi_thresh > 0) %>% select(-dpsi_span_thresh) %>% group_by(inner_dpsi_thresh, min_jc_comparison_thresh) %>% summarize(mean_fp_rate = mean(fp_rate, na.rm = TRUE)) %>% ungroup() %>% ggplot(aes(x = min_jc_comparison_thresh, y = inner_dpsi_thresh, fill = mean_fp_rate, col = mean_fp_rate <= 0.05)) + geom_tile() + scale_fill_viridis_c()
 ```
 
 
