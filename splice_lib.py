@@ -787,10 +787,11 @@ def complete_event_dict(standard_event_dict, suppress_unique_edges = False, supp
                         del included_unique_edges[included_unique_edges.index("left_" + str(standard_event_dict[event]["included_exons"][0][0]))]
                         del excluded_unique_edges[excluded_unique_edges.index("left_" + str(standard_event_dict[event]["excluded_exons"][0][0]))]
                     except ValueError:
-                        print "Possible cross-mapping failure or other event-type definition failure - no unique edges found for at least one form in event", event
-                        print included_unique_edges
-                        print excluded_unique_edges
-                        print standard_event_dict[event]
+                        pass
+                        #print "Possible cross-mapping failure or other event-type definition failure - no unique edges found for at least one form in event", event
+                        #print included_unique_edges
+                        #print excluded_unique_edges
+                        #print standard_event_dict[event]
 
 
                 if (standard_event_dict[event]["event_type"] in ["AF", "MF", "CF"] and standard_event_dict[event]["strand"] == "-") or (standard_event_dict[event]["event_type"] in ["AL", "ML", "CL"] and standard_event_dict[event]["strand"] == "+"):
@@ -799,10 +800,11 @@ def complete_event_dict(standard_event_dict, suppress_unique_edges = False, supp
                         del included_unique_edges[included_unique_edges.index("right_" + str(standard_event_dict[event]["included_exons"][-1][-1]))]
                         del excluded_unique_edges[excluded_unique_edges.index("right_" + str(standard_event_dict[event]["excluded_exons"][-1][-1]))]
                     except ValueError:
-                        print "Possible cross-mapping failure or other event-type definition failure - no unique edges found for at least one form in event", event
-                        print included_unique_edges
-                        print excluded_unique_edges
-                        print standard_event_dict[event]
+                        pass
+                        #print "Possible cross-mapping failure or other event-type definition failure - no unique edges found for at least one form in event", event
+                        #print included_unique_edges
+                        #print excluded_unique_edges
+                        #print standard_event_dict[event]
 
             standard_event_dict[event]["included_junction_counts"].update( {(chrom + "_" + str(i) + "_" + strand):0 for i in included_unique_edges})
             standard_event_dict[event]["excluded_junction_counts"].update( {(chrom + "_" + str(i) + "_" + strand):0 for i in excluded_unique_edges})
