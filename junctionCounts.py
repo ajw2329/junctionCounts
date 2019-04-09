@@ -22,13 +22,13 @@ def create_eij_ncls_dict(standard_event_dict):
 	eij_only_count_dict = {}
 	ncls_by_chrom_strand = {}
 
-	for chrom in standard_event_dict:
+	for chrom, chrom_dict in standard_event_dict.iteritems():
 
-		for strand in standard_event_dict[chrom]:
+		for strand, strand_dict in chrom_dict.iteritems():
 
-			for event in standard_event_dict[chrom][strand]:
+			for event, event_val in strand_dict.iteritems():
 
-				for eij in standard_event_dict[chrom][strand][event]["included_ei_junctions"]:
+				for eij in event_val["included_ei_junctions"]:
 
 					eij_by_chrom_strand.setdefault(chrom, {}).setdefault(strand, set()).add(int(eij))
 
@@ -38,7 +38,7 @@ def create_eij_ncls_dict(standard_event_dict):
 
 					eij_only_count_dict.setdefault(eij_index, 0)
 
-				for eij in standard_event_dict[chrom][strand][event]["excluded_ei_junctions"]:
+				for eij in event_val["excluded_ei_junctions"]:
 
 					eij_by_chrom_strand.setdefault(chrom, {}).setdefault(strand, set()).add(int(eij))
 
@@ -49,13 +49,13 @@ def create_eij_ncls_dict(standard_event_dict):
 					eij_only_count_dict.setdefault(eij_index, 0)
 
 
-	for chrom in eij_by_chrom_strand:
+	for chrom, chrom_dict in eij_by_chrom_strand.iteritems():
 
 		ncls_by_chrom_strand[chrom] = {}
 
-		for strand in eij_by_chrom_strand[chrom]:
+		for strand, strand_dict in chrom_dict.iteritems():
 
-			starts = np.array(list(eij_by_chrom_strand[chrom][strand])) - 1 ## to make 0-based
+			starts = np.array(list(strand_dict)) - 1 ## to make 0-based
 			ends = starts
 			ids = starts
 
