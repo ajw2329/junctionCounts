@@ -1,4 +1,4 @@
-import splice_lib
+from splice_lib import splice_lib
 import sys
 import argparse
 import copy

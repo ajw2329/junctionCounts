@@ -18,60 +18,31 @@ library(tidyverse)
 
 ```{r}
 
-gt_dpsi <- read.table("/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/dpsi.tsv",
+gt_dpsi <- read.table("/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/zhang_shuffled/dpsi.tsv",
                       header = FALSE,
                       stringsAsFactors = FALSE) %>% 
            rename(event_id = V1, gt_dpsi = V2)
 
-gt_psi <- read.table("/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/psi.tsv",
+gt_psi <- read.table("/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/zhang_shuffled/psi.tsv",
                      header = FALSE,
                      stringsAsFactors = FALSE,
                      sep = "\t") %>% 
           set_names(c("event_id", "sample_01", "sample_02","sample_03","sample_04","sample_05","sample_06"))
           
 
-sample_info <- read.table("/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/sim_rep_info.txt",
+sample_info <- read.table("/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/zhang_shuffled/sim_rep_info.txt",
                           sep = "\t",
                           stringsAsFactors = FALSE,
                           header = TRUE) %>%
                rename(sample_name = rep_id, condition = group)
 
-all_counts <- read.table("/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/all_junctioncounts.tsv",
+all_counts <- read.table("/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/zhang_shuffled/all_junctioncounts.tsv",
                          sep = "\t",
                          stringsAsFactors = FALSE,
                          header = TRUE) %>% 
-  left_join(sample_info, by = "sample_name")
-
-sample_01_end_corrected <- read.table("/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/sample_01_count_psi_outfile.tsv",
-                                      sep = "\t",
-                                      stringsAsFactors = FALSE,
-                                      header = TRUE)
-
-
-corr_uncorr_comparison <- gt_psi %>% 
-  left_join(sample_01_end_corrected %>% select(event_id, PSI_lo, PSI_hi), by = "event_id") %>% 
-  mutate(PSI_mid = (PSI_lo + PSI_hi)/2) %>% 
-  select(-PSI_lo, -PSI_hi) %>% 
-  left_join(all_counts %>% 
-              filter(sample_name == "sample_01") %>% 
-              mutate(uncorr_PSI_mid = (PSI_lo + PSI_hi)/2), by = "event_id")
-
-cor(corr_uncorr_comparison$sample_01, corr_uncorr_comparison$PSI_mid, use = "complete.obs")
-cor(corr_uncorr_comparison$sample_01, corr_uncorr_comparison$uncorr_PSI_mid, use = "complete.obs")
-
-
-se_corr_uncorr_comparison <- corr_uncorr_comparison %>%
-  filter(grepl("SE", event_id))
-
-cor(se_corr_uncorr_comparison$sample_01, se_corr_uncorr_comparison$PSI_mid, use = "complete.obs")
-cor(se_corr_uncorr_comparison$sample_01, se_corr_uncorr_comparison$uncorr_PSI_mid, use = "complete.obs")
-
-
-af_corr_uncorr_comparison <- corr_uncorr_comparison %>%
-  filter(grepl("AF", event_id))
-
-cor(af_corr_uncorr_comparison$sample_01, af_corr_uncorr_comparison$PSI_mid, use = "complete.obs")
-cor(af_corr_uncorr_comparison$sample_01, af_corr_uncorr_comparison$uncorr_PSI_mid, use = "complete.obs")
+  left_join(sample_info, by = "sample_name") %>%
+  mutate(mid_psi = (PSI_lo + PSI_hi)/2) %>%
+  separate(event_id, c("event_type"), remove = FALSE, extra = "drop")
 
 ```
 
@@ -81,9 +52,10 @@ cor(af_corr_uncorr_comparison$sample_01, af_corr_uncorr_comparison$uncorr_PSI_mi
 
 events_full_span <- all_counts %>% 
                       mutate(min_jc_row = pmap_dbl(list(x = min_IJC, y = min_SJC), function(x,y) max(x,y))) %>%
-                      group_by(event_id,condition) %>% 
+                      group_by(event_id,event_type, condition) %>% 
                       summarize(min_PSI_lo = min(PSI_lo), max_PSI_hi = max(PSI_hi), min_jc_condition = min(min_jc_row)) %>% 
-                      ungroup()
+                      ungroup() %>%
+                      mutate(mid_PSI = (min_PSI_lo + max_PSI_hi)/2)
 
 
 all_condition_dpsi_df_list <- list()
@@ -139,32 +111,41 @@ fp_tp <- dpsi_gt_measured %>%
          tp = sign(mid_dpsi) != 0 & sign(mid_dpsi) == sign(gt_dpsi)) %>%
   filter(!is.na(fp), !(!fp & !tp))
 
+fp_tp %>% filter(abs(inner_dpsi) > 0) %>% group_by(event_type) %>% count()
 
-thresholds <- data.frame(inner_dpsi_thresh = seq(0,1,0.025), 
+
+thresholds <- data.frame(mid_dpsi_thresh = seq(0,1,0.025), 
                          min_jc_comparison_thresh = seq(1,41,1), 
                          dpsi_span_thresh = seq(0,2,0.05))
 
 thresholds_full <- thresholds %>% 
-  expand(inner_dpsi_thresh, 
+  expand(mid_dpsi_thresh, 
          min_jc_comparison_thresh,
          dpsi_span_thresh)
 
+event_type_fp_rate_threshold_list = list()
 
-fp_rate <- apply(thresholds_full, 1, function(x, df) df %>% 
-        filter(abs(inner_dpsi) >= x[1], min_jc_comparison >= x[2], span_dpsi <= x[3]) %>%
-        summarize(fp_rate = mean(fp)) %>% pull(fp_rate), df = fp_tp)
+for (i in unique(all_counts$event_type)) {
+  fp_tp_et = fp_tp %>% filter(event_type == i)
+  fp_rate <- apply(thresholds_full, 1, function(x, df) df %>% 
+          filter(abs(mid_dpsi) >= x[1], min_jc_comparison >= x[2], span_dpsi <= x[3]) %>%
+          summarize(fp_rate = mean(fp)) %>% pull(fp_rate), df = fp_tp_et)
+  thresholds_fp_rate <- cbind(thresholds_full, data.frame(event_type = i, fp_rate = fp_rate))
+  event_type_fp_rate_threshold_list = c(event_type_fp_rate_threshold_list, list(thresholds_fp_rate))
+}
 
-thresholds_fp_rate <- cbind(thresholds_full, data.frame(fp_rate = fp_rate))
-
+event_type_thresholds_fp_rate <- do.call(rbind, event_type_fp_rate_threshold_list)
 
 thresholds_fp_rate %>% group_by(dpsi_span_thresh) %>% summarize(fp_rate_mean = mean(fp_rate, na.rm = TRUE)) %>% ggplot(aes(x = dpsi_span_thresh, y = fp_rate_mean)) + geom_point()
 
 
 thresholds_fp_rate %>% group_by(min_jc_comparison_thresh) %>% summarize(fp_rate_mean = mean(fp_rate, na.rm = TRUE)) %>% ggplot(aes(x = min_jc_comparison_thresh, y = fp_rate_mean)) + geom_point()
 
-thresholds_fp_rate %>% group_by(inner_dpsi_thresh) %>% summarize(fp_rate_mean = mean(fp_rate, na.rm = TRUE)) %>% ggplot(aes(x = inner_dpsi_thresh, y = fp_rate_mean)) + geom_point()
+thresholds_fp_rate %>% group_by(mid_dpsi_thresh) %>% summarize(fp_rate_mean = mean(fp_rate, na.rm = TRUE)) %>% ggplot(aes(x = mid_dpsi_thresh, y = fp_rate_mean)) + geom_point()
 
-thresholds_fp_rate %>% filter(inner_dpsi_thresh > 0) %>% select(-dpsi_span_thresh) %>% group_by(inner_dpsi_thresh, min_jc_comparison_thresh) %>% summarize(mean_fp_rate = mean(fp_rate, na.rm = TRUE)) %>% ungroup() %>% ggplot(aes(x = min_jc_comparison_thresh, y = inner_dpsi_thresh, fill = mean_fp_rate, col = mean_fp_rate <= 0.05)) + geom_tile() + scale_fill_viridis_c()
+thresholds_fp_rate %>% filter(mid_dpsi_thresh > 0) %>% select(-dpsi_span_thresh) %>% group_by(mid_dpsi_thresh, min_jc_comparison_thresh) %>% summarize(mean_fp_rate = mean(fp_rate, na.rm = TRUE)) %>% ungroup() %>% ggplot(aes(x = min_jc_comparison_thresh, y = mid_dpsi_thresh, fill = mean_fp_rate, col = mean_fp_rate <= 0.05)) + geom_tile() + scale_fill_viridis_c()
+
+event_type_thresholds_fp_rate %>% filter(mid_dpsi_thresh > 0) %>% group_by(mid_dpsi_thresh, dpsi_span_thresh, event_type) %>% summarize(mean_fp_rate = mean(fp_rate, na.rm = TRUE)) %>% ungroup() %>% ggplot(aes(x = dpsi_span_thresh, y = mid_dpsi_thresh, fill = mean_fp_rate, col = mean_fp_rate <= 0.05)) + geom_tile() + scale_fill_viridis_c() + theme_minimal() + facet_wrap(~event_type)
 ```
 
 

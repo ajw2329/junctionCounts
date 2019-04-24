@@ -1,7 +1,7 @@
 import sys
 import re
 import argparse
-import splice_lib
+from splice_lib import splice_lib
 import copy
 import subprocess
 import pickle
@@ -30,21 +30,31 @@ def create_eij_ncls_dict(standard_event_dict):
 
 				for eij in event_val["included_ei_junctions"]:
 
-					eij_by_chrom_strand.setdefault(chrom, {}).setdefault(strand, set()).add(int(eij))
+					((eij_by_chrom_strand
+						).setdefault(chrom, {})
+							).setdefault(strand, set()).add(int(eij))
 
 					eij_index = chrom + "_" + str(eij) + "_" + strand
 
-					eij_indexed_event_dict.setdefault(chrom, {}).setdefault(strand, {}).setdefault(eij_index, set()).add(event + "_included")
+					(((eij_indexed_event_dict
+						).setdefault(chrom, {})
+							).setdefault(strand, {})
+								).setdefault(eij_index, set()).add(event + "_included")
 
 					eij_only_count_dict.setdefault(eij_index, 0)
 
 				for eij in event_val["excluded_ei_junctions"]:
 
-					eij_by_chrom_strand.setdefault(chrom, {}).setdefault(strand, set()).add(int(eij))
+					((eij_by_chrom_strand
+						).setdefault(chrom, {})
+							).setdefault(strand, set()).add(int(eij))
 
 					eij_index = chrom + "_" + str(eij) + "_" + strand
 
-					eij_indexed_event_dict.setdefault(chrom, {}).setdefault(strand, {}).setdefault(eij_index, set()).add(event + "_excluded")
+					(((eij_indexed_event_dict
+						).setdefault(chrom, {})
+							).setdefault(strand, {})
+								).setdefault(eij_index, set()).add(event + "_excluded")
 
 					eij_only_count_dict.setdefault(eij_index, 0)
 
@@ -61,18 +71,24 @@ def create_eij_ncls_dict(standard_event_dict):
 
 			ncls_by_chrom_strand[chrom][strand] = NCLS(starts,ends,ids)
 
-	return ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict
+
+	return (ncls_by_chrom_strand,
+		    eij_indexed_event_dict, 
+		    eij_only_count_dict)
 
 
 
-def read_pair_generator(bam, region_string = None):
+def read_pair_generator(bam):
 	"""
     Slight modification of function written by biostars user gizone1: https://www.biostars.org/p/306041/
 	Generate read pairs in a BAM file or within a region string.
 	Reads are added to read_dict until a pair is found.
 	"""
+
 	read_dict = defaultdict(lambda: [None, None])
-	for read in bam.fetch(region = region_string):
+
+	for read in bam.fetch():
+
 		if not read.is_proper_pair or read.is_secondary or read.is_supplementary:
 			continue
 		qname = read.query_name
@@ -91,12 +107,20 @@ def read_pair_generator(bam, region_string = None):
 
 def parse_reads(read_list, forward_read):
 	'''
-		Takes as input a read or read pair in a list of pysam AlignedSegments, returns a dictionary containing a list of junctions (where a junction is described by the chromosome, the start/end position, and the strand, all joined as a string), as well as (separately) the chrom and strand information.  Some code derived from find_introns() in pysam.
+		Takes as input a read or read pair in a list of pysam AlignedSegments, 
+		returns a dictionary containing a list of junctions 
+		(where a junction is described by the chromosome, 
+		the start/end position, and the strand, all joined as a string), 
+		as well as (separately) the chrom and strand information.  
+		Some code derived from find_introns() in pysam.
 	'''
 
 	try:
+
 		chrom_list = list(set([i.reference_name for i in read_list]))
+
 	except AttributeError:
+
 		print "WHOOPS"
 		print read_list
 
@@ -112,6 +136,8 @@ def parse_reads(read_list, forward_read):
 
 		return None
 
+
+
 	if len(chrom_list) > 1: ##implies some sort of chimeric read - not currently handled
 
 		return None
@@ -119,6 +145,7 @@ def parse_reads(read_list, forward_read):
 	else:
 
 		chrom = re.sub("_","&",chrom_list[0].strip())
+
 
 	exons = []
 	junctions = []
@@ -191,11 +218,17 @@ def parse_reads(read_list, forward_read):
 
 	if len(exons) > 1:
 		
-		outdict = {"junctions": list(set(junctions)), "exons": exons, "strand": strand, "chrom": chrom}
+		outdict = {"junctions": list(set(junctions)), 
+				   "exons": exons, 
+				   "strand": strand, 
+				   "chrom": chrom}
 
 	else:
 
-		outdict = {"junctions": [], "exons": exons, "strand": strand, "chrom": chrom}
+		outdict = {"junctions": [], 
+				   "exons": exons, 
+				   "strand": strand, 
+				   "chrom": chrom}
 
 	return outdict
 
@@ -250,10 +283,25 @@ def intersection_collapse(input_list):
 		return minimal_list
 
 
-def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, output_directory, sample_name, forward_read = "R2", single_end = False, bootstraps = False):
+
+def process_reads(bam_filename, 
+				  junction_indexed_event_dict, 
+				  junction_only_count_dict, 
+				  standard_event_dict, 
+				  ncls_by_chrom_strand,
+				  eij_indexed_event_dict, 
+				  eij_only_count_dict, 
+				  output_directory, 
+				  sample_name, 
+				  forward_read = "R2", 
+				  single_end = False, 
+				  bootstraps = False):
 
 	'''
-		Primary read assignment functino - takes as input a junction read filename (i.e. a BED12 file - can be gzipped), parses the read with "parse_junction_read", collapses matching events with "intersection_collapse", and adds 1 count to all surviving event matches in the event ID-indexed dictionary.
+		Primary read assignment function - takes as input a bam file, 
+		parses the read with "parse_junction_read", 
+		collapses matching events with "intersection_collapse", 
+		and adds 1 count to all surviving event matches in the event ID-indexed dictionary.
 	'''
 
 
@@ -283,14 +331,23 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 
 	if single_end:
 
-		for read in bam:
+		for read in bam.fetch():
 
-			read_properties = parse_reads([read], forward_read)
+			read_properties = parse_reads([read], 
+										  forward_read)
 
 			if not read_properties:
 				continue
 
-			read_info = assign_reads(read_properties, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read, bootstraps)
+			read_info = assign_reads(read_properties, 
+									 junction_indexed_event_dict, 
+									 junction_only_count_dict, 
+									 standard_event_dict,
+									 ncls_by_chrom_strand,
+									 eij_indexed_event_dict, 
+									 eij_only_count_dict, 
+									 forward_read, 
+									 bootstraps)
 
 			if bootstraps:
 
@@ -302,23 +359,41 @@ def process_reads(bam_filename, junction_indexed_event_dict, junction_only_count
 
 		for read1, read2 in read_pair_generator(bam):
 
-			read_properties = parse_reads([read1, read2], forward_read)
+			read_properties = parse_reads([read1, read2], 
+										  forward_read)
 
 			if not read_properties:
 				continue
 
-			read_info = assign_reads(read_properties, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read, bootstraps)
+			read_info = assign_reads(read_properties, 
+									 junction_indexed_event_dict, 
+									 junction_only_count_dict, 
+									 standard_event_dict, 
+									 ncls_by_chrom_strand,
+									 eij_indexed_event_dict, 
+									 eij_only_count_dict, 
+									 forward_read, 
+									 bootstraps)
 
 			if bootstraps:
 
 				all_read_info[list_index_counter] = read_info
 				list_index_counter += 1
 
+	bam.close()
 
 	return all_read_info, size
 
 
-def assign_reads(read_properties, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, forward_read, bootstraps):
+def assign_reads(read_properties, 
+				 junction_indexed_event_dict, 
+				 junction_only_count_dict, 
+				 standard_event_dict, 
+				 ncls_by_chrom_strand,
+				 eij_indexed_event_dict, 
+				 eij_only_count_dict, 
+				 forward_read, 
+				 bootstraps):
 
 		exons = read_properties["exons"]
 		junctions = read_properties["junctions"]
@@ -362,7 +437,9 @@ def assign_reads(read_properties, junction_indexed_event_dict, junction_only_cou
 
 					if strand in ncls_by_chrom_strand[chrom]:
 
-						[overlapping_eij.add(chrom + "_" + str(i[0] + 1) + "_" + strand) for i in ncls_by_chrom_strand[chrom][strand].find_overlap(exon[0], exon[1])]
+						[overlapping_eij.add(chrom + "_" + str(i[0] + 1) + "_" + strand) 
+						 for i in 
+						 ncls_by_chrom_strand[chrom][strand].find_overlap(exon[0], exon[1])]
 
 
 			for eij in overlapping_eij:
@@ -417,7 +494,9 @@ def assign_reads(read_properties, junction_indexed_event_dict, junction_only_cou
 
 					for local_strand in ncls_by_chrom_strand[chrom]:
 
-						[overlapping_eij.add(chrom + "_" + str(i[0] + 1) + "_" + local_strand) for i in ncls_by_chrom_strand[chrom][local_strand].find_overlap(exon[0], exon[1])]
+						[overlapping_eij.add(chrom + "_" + str(i[0] + 1) + "_" + local_strand) 
+						 for i in 
+						 ncls_by_chrom_strand[chrom][local_strand].find_overlap(exon[0], exon[1])]
 
 
 			for eij in overlapping_eij:
@@ -456,8 +535,12 @@ def assign_reads(read_properties, junction_indexed_event_dict, junction_only_cou
 
 			## discard events from event_junction_dict and event_eij_dict that are eliminated by intersection_collapse
 
-			event_junction_dict = {k:v for k,v in event_junction_dict.items() if k in minimal_candidate_isoform_list_flat}
-			event_eij_dict = {k:v for k,v in event_eij_dict.items() if k in minimal_candidate_isoform_list_flat}
+			event_junction_dict = {k:v for k,v in event_junction_dict.items() 
+								   if k in minimal_candidate_isoform_list_flat}
+
+
+			event_eij_dict = {k:v for k,v in event_eij_dict.items() 
+							  if k in minimal_candidate_isoform_list_flat}
 
 			#standard_event_dict[chrom][strand][event_id][event_form + "_" + "count"] += 1 ## total count
 
@@ -515,8 +598,13 @@ def assign_reads(read_properties, junction_indexed_event_dict, junction_only_cou
 
 			## convert to strings for h5py storage
 
-			event_junction_dict_list = "=".join([event + ":" + ",".join(junctions) for event, junctions in event_junction_dict.items()])
-			event_eij_dict_list = "=".join([event + ":" + ",".join(eij) for event, eij in event_eij_dict.items()])
+			event_junction_dict_list = "=".join([event + ":" + ",".join(junctions) 
+												 for event, junctions in 
+												 event_junction_dict.items()])
+
+			event_eij_dict_list = "=".join([event + ":" + ",".join(eij) 
+				 							for event, eij in 
+				 							event_eij_dict.items()])
 
 			possible_strands = ",".join(possible_strands)
 
@@ -527,10 +615,21 @@ def assign_reads(read_properties, junction_indexed_event_dict, junction_only_cou
 			#			 "strand": strand,
 			#			 "possible_strands": possible_strands}
 
-			return "&".join([event_junction_dict_list, event_eij_dict_list, chrom, strand, possible_strands])
+			return "&".join([event_junction_dict_list, 
+							 event_eij_dict_list, 
+							 chrom, 
+							 strand, 
+							 possible_strands])
 
 
-def bootstrap_junction_counts(junction_only_count_dict, standard_event_dict, eij_only_count_dict, junction_indexed_event_dict, eij_indexed_event_dict, n_reads, forward_read, all_read_info):
+def bootstrap_junction_counts(junction_only_count_dict, 
+							  standard_event_dict, 
+						  	  eij_only_count_dict, 
+						  	  junction_indexed_event_dict, 
+						  	  eij_indexed_event_dict, 
+						  	  n_reads, 
+						  	  forward_read, 
+						  	  all_read_info):
 
 
 	for n in range(0,int(n_reads)):
@@ -539,8 +638,13 @@ def bootstrap_junction_counts(junction_only_count_dict, standard_event_dict, eij
 
 		read = all_read_info[index].split("&")
 
-		event_junction_dict_list = [[i.split(":")[0], i.split(":")[1].split(",")] for i in read[0].split("=")] if read[0] != "" else []
-		event_eij_dict_list = [[i.split(":")[0], i.split(":")[1].split(",")] for i in read[1].split("=")] if read[1] != "" else []
+		event_junction_dict_list = [[i.split(":")[0], i.split(":")[1].split(",")] 
+		 							for i in 
+		 							read[0].split("=")] if read[0] != "" else []
+
+		event_eij_dict_list = [[i.split(":")[0], i.split(":")[1].split(",")] 
+							   for i in 
+							   read[1].split("=")] if read[1] != "" else []
 
 		chrom = read[2]
 		strand = read[3]
@@ -601,7 +705,9 @@ def bootstrap_junction_counts(junction_only_count_dict, standard_event_dict, eij
 
 
 
-def get_exon_edge_counts(junction_only_count_dict, junction_indexed_event_dict, standard_event_dict):
+def get_exon_edge_counts(junction_only_count_dict, 
+						 junction_indexed_event_dict, 
+					 	 standard_event_dict):
 
 	'''
 		Creates dictionary of edge counts (edge is one-half of junction - an edge's counts is the sum of all of the junction counts that include that edge) 
@@ -655,7 +761,8 @@ def get_exon_edge_counts(junction_only_count_dict, junction_indexed_event_dict, 
 
 
 
-def max_jnc_gene_dict(event_ioe, standard_event_dict):
+def max_jnc_gene_dict(event_ioe, 
+					  standard_event_dict):
 	'''
 		Recovers gene-event associations from ioe file, then generates lists of all junction counts in a particular gene in a dictionary index by gene symbol.  Returns said dictionary.
 	'''
@@ -736,7 +843,16 @@ def max_jnc_gene_dict(event_ioe, standard_event_dict):
 
 
 
-def calc_psi(standard_event_dict, outdir, sample_name, gzipped, gene_jc_dict, suppress_output, bootstrap_num = "NA", filename_addendum = "", file_write_mode = "w", header = True):
+def calc_psi(standard_event_dict, 
+			 outdir, 
+			 sample_name, 
+			 gzipped, 
+			 gene_jc_dict, 
+			 suppress_output, 
+			 bootstrap_num = "NA", 
+			 filename_addendum = "", 
+			 file_write_mode = "w", 
+			 header = True):
 
 	'''
 		Calculates PSI values for all events, writes tab-separated outfile containing:
@@ -750,36 +866,87 @@ def calc_psi(standard_event_dict, outdir, sample_name, gzipped, gene_jc_dict, su
 	if not suppress_output:
 
 		if gzipped:
-			count_psi_outfile = gzip.open(outdir + "/" + sample_name + "_" + "count_psi_outfile" + filename_addendum + ".tsv.gz", file_write_mode + 'b')	
+			count_psi_outfile = gzip.open(outdir + 
+											"/" + 
+											sample_name + 
+											"_" + 
+											"count_psi_outfile" + 
+											filename_addendum + 
+											".tsv.gz", 
+											file_write_mode + 
+											'b')	
+
 		else:
-			count_psi_outfile = open(outdir + "/" + sample_name  + "_" + "count_psi_outfile" + filename_addendum + ".tsv", file_write_mode)
+			count_psi_outfile = open(outdir + 
+									"/" + 
+									sample_name  + 
+									"_" + 
+									"count_psi_outfile" + 
+									filename_addendum + 
+									".tsv", 
+									file_write_mode)
 
 		if header:
 
-			count_psi_outfile.write("sample_name" + "\t" + "event_id" + "\t" + "event_type" + "\t" + "min_IJC" + "\t" + "min_SJC" + "\t" + "IncFormLen" + "\t" + "SkipFormLen" + "\t" + "PSI" + "\t" + "max_gene_frac" + "\t" + "all_IJC" + "\t" + "all_SJC" + "\t" + "span_PSI" + "\t" + "PSI_lo" + "\t" + "PSI_hi" + "\t" + "bootstrap_num" + "\n")
+			header_string = "\t".join(["sample_name", 
+									   "event_id", 
+									   "event_type", 
+									   "min_ijc", 
+									   "min_sjc", 
+									   "psi_avg", 
+									   "max_gene_frac", 
+									   "all_ijc", 
+									   "all_sjc",
+									   "avg_ijc",
+									   "avg_sjc", 
+									   "psi_span", 
+									   "psi_lo",
+									   "ijc_psi_lo",
+									   "sjc_psi_lo",
+									   "psi_hi", 
+									   "ijc_psi_hi",
+									   "sjc_psi_hi",
+									   "psi_mid",
+									   "bootstrap_num"])
+
+			count_psi_outfile.write(header_string + "\n")
 
 
-	for chrom in standard_event_dict:
-		for strand in standard_event_dict[chrom]:
-			for event in standard_event_dict[chrom][strand]:
+	for chrom, chrom_entry in standard_event_dict.iteritems():
 
-				included_counts = [standard_event_dict[chrom][strand][event]["included_junction_counts"][i] for i in standard_event_dict[chrom][strand][event]["included_junction_counts"]]
+		for strand, strand_entry in chrom_entry.iteritems():
+
+			for event, event_entry in strand_entry.iteritems():
+
+				included_counts = [ event_entry["included_junction_counts"][i] 
+									for i in 
+									event_entry["included_junction_counts"] ]
+
+
 				try:
 					min_included = min(included_counts)
 				except:
 					print chrom, strand, event
 					print standard_event_dict[chrom][strand][event]
+
+
+
 				avg_included = float(sum(included_counts))/float(len(included_counts))
 
-				excluded_counts = [standard_event_dict[chrom][strand][event]["excluded_junction_counts"][i] for i in standard_event_dict[chrom][strand][event]["excluded_junction_counts"]]
+				excluded_counts = [ event_entry["excluded_junction_counts"][i] 
+									for i in 
+									event_entry["excluded_junction_counts"] ]
+
+
 				min_excluded = min(excluded_counts)
 				avg_excluded = float(sum(excluded_counts))/float(len(excluded_counts))
 
 				if min_included + min_excluded > 0:
 
-					min_psi = round(float(min_included)/(float(min_included) + float(min_excluded)),4)
+					psi_min_counts = round(float(min_included)/(float(min_included) + float(min_excluded)), 4)
 
 					all_psi_values = []
+					all_psi_values_count_pairs = []
 
 					for i in included_counts:
 
@@ -787,32 +954,53 @@ def calc_psi(standard_event_dict, outdir, sample_name, gzipped, gene_jc_dict, su
 
 							temp_PSI = float(i)/(float(i) + float(j))
 							all_psi_values.append(temp_PSI)
+							all_psi_values_count_pairs.append((i,j))
 
-					span_psi = round(max(all_psi_values) - min(all_psi_values), 4)
-					psi_lo = round(min(all_psi_values),4)
-					psi_hi = round(max(all_psi_values),4)
+					psi_span = round(max(all_psi_values) - min(all_psi_values), 4)
+
+					psi_avg = round((sum(all_psi_values)/len(all_psi_values)), 4)
+
+					psi_lo_full = min(all_psi_values)
+					psi_lo = round(psi_lo_full, 4)
+					psi_lo_count_pair = all_psi_values_count_pairs[ all_psi_values.index(psi_lo_full) ]
+					psi_lo_inc_counts = psi_lo_count_pair[0]
+					psi_lo_exc_counts = psi_lo_count_pair[1]
+
+					psi_hi_full = max(all_psi_values)
+					psi_hi = round(psi_hi_full, 4)
+					psi_hi_count_pair = all_psi_values_count_pairs[ all_psi_values.index(psi_hi_full) ]
+					psi_hi_inc_counts = psi_hi_count_pair[0]
+					psi_hi_exc_counts = psi_hi_count_pair[1]
+
+					psi_mid = round((psi_hi_full + psi_lo_full)/2, 4)
 
 				else:
 
-					min_psi = "NA"
-					span_psi = "NA"
+					psi_avg = "NA"
+					psi_min_counts = "NA"
+					psi_span = "NA"
 					psi_lo = "NA"
+					psi_lo_inc_counts = "NA"
+					psi_lo_exc_counts = "NA"
 					psi_hi = "NA"
+					psi_hi_inc_counts = "NA"
+					psi_hi_exc_counts = "NA"
+					psi_mid = "NA"
 
 
 				if avg_included + avg_excluded > 0:
 
-					avg_psi = float(avg_included)/(float(avg_included) + float(avg_excluded))
+					psi_avg_counts = float(avg_included)/(float(avg_included) + float(avg_excluded))
 
 				else:
-					avg_psi = "NA"
+					psi_avg_counts = "NA"
 
 				if gene_jc_dict != None:
-					if "gene" in standard_event_dict[chrom][strand][event]:
+					if "gene" in event_entry:
 
 						genes_max_jn = []
 
-						for gene in standard_event_dict[chrom][strand][event]["gene"]: ### looped in case event "belongs" to multiple genes
+						for gene in event_entry["gene"]: ### looped in case event "belongs" to multiple genes
 
 							genes_max_jn.append(max(gene_jc_dict[gene]))
 
@@ -820,7 +1008,12 @@ def calc_psi(standard_event_dict, outdir, sample_name, gzipped, gene_jc_dict, su
 
 						if gene_max_jn > 0:
 
-							event_max_frac = round(max((float(min_included)/gene_max_jn), float(min_excluded)/gene_max_jn),4)
+							event_max_frac = round(
+													max(
+														(float(min_included)/gene_max_jn), 
+														(float(min_excluded)/gene_max_jn)
+														),
+													4)
 
 						else:
 
@@ -830,23 +1023,54 @@ def calc_psi(standard_event_dict, outdir, sample_name, gzipped, gene_jc_dict, su
 				else:
 					event_max_frac = "NA"
 
-				standard_event_dict[chrom][strand][event]["avg_psi"] = avg_psi
-				standard_event_dict[chrom][strand][event]["min_psi"] = min_psi
-				standard_event_dict[chrom][strand][event]["span_psi"] = span_psi
-				standard_event_dict[chrom][strand][event]["psi_lo"] = psi_lo
-				standard_event_dict[chrom][strand][event]["psi_hi"] = psi_hi
-				standard_event_dict[chrom][strand][event]["event_max_frac"] = event_max_frac
-				standard_event_dict[chrom][strand][event]["min_included"] = min_included
-				standard_event_dict[chrom][strand][event]["min_excluded"] = min_excluded
-				standard_event_dict[chrom][strand][event]["avg_included"] = avg_included
-				standard_event_dict[chrom][strand][event]["avg_excluded"] = avg_excluded
-				standard_event_dict[chrom][strand][event]["all_included_counts"] = ",".join(map(str, included_counts))
-				standard_event_dict[chrom][strand][event]["all_excluded_counts"] = ",".join(map(str, excluded_counts))
+				event_entry["avg_counts_psi"] = psi_avg_counts
+				event_entry["psi_avg"] = psi_avg
+				event_entry["psi_min_counts"] = psi_min_counts
+				event_entry["psi_span"] = psi_span
+				event_entry["psi_lo"] = psi_lo
+				event_entry["psi_lo_inc_counts"] = psi_lo_inc_counts
+				event_entry["psi_lo_exc_counts"] = psi_lo_exc_counts
+				event_entry["psi_hi_inc_counts"] = psi_hi_inc_counts
+				event_entry["psi_hi_exc_counts"] = psi_hi_exc_counts
+				event_entry["psi_hi"] = psi_hi
+				event_entry["psi_mid"] = psi_mid
+				event_entry["event_max_frac"] = event_max_frac
+				event_entry["min_included"] = min_included
+				event_entry["min_excluded"] = min_excluded
+				event_entry["avg_included"] = avg_included
+				event_entry["avg_excluded"] = avg_excluded
+				event_entry["all_included_counts"] = ",".join(map(str, included_counts))
+				event_entry["all_excluded_counts"] = ",".join(map(str, excluded_counts))
 
 
 				if not suppress_output:
-					###below "1" is now used for included and excluded numbers of junctions. The normalization for junction number is not needed as only the minimum count value is used now.
-					count_psi_outfile.write(sample_name + "\t" + event + "\t" + standard_event_dict[chrom][strand][event]["event_type"] + "\t" + str(min_included) + "\t" + str(min_excluded) + "\t" + "1" + "\t" + "1" + "\t" + str(avg_psi) + "\t" + str(event_max_frac) + "\t" + ",".join(map(str, included_counts)) + "\t" + ",".join(map(str, excluded_counts)) + "\t" + str(span_psi) + "\t" + str(psi_lo) + "\t" + str(psi_hi) + "\t" + str(bootstrap_num) + "\n")
+
+					###below "1" is now used for included and excluded numbers of junctions. 
+					###The normalization for junction number is not needed as only a 
+					###single count value is used for numerator and denominator now.
+
+					output_entry = "\t".join([sample_name,
+											  event,
+											  event_entry["event_type"],
+											  str(min_included),
+											  str(min_excluded),
+											  str(psi_avg),
+											  str(event_max_frac),
+											  ",".join(map(str, included_counts)),
+											  ",".join(map(str, excluded_counts)),
+											  str(avg_included),
+											  str(avg_excluded),
+											  str(psi_span),
+											  str(psi_lo),
+											  str(psi_lo_inc_counts),
+											  str(psi_lo_exc_counts),
+											  str(psi_hi),
+											  str(psi_hi_inc_counts),
+											  str(psi_hi_exc_counts),
+											  str(psi_mid),
+											  str(bootstrap_num)])
+
+					count_psi_outfile.write(output_entry + "\n")
 
 
 
@@ -855,25 +1079,97 @@ def main(args, event_dict = None):
 
 	start_time = time.time()
 
-	print "{0}: {1} seconds elapsed. Starting junctionCounts.  Now parsing arguments.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+	print ("{0}: {1} seconds elapsed. Starting junctionCounts." +
+		   "Now parsing arguments."
+		   ).format(str(datetime.now().replace(microsecond = 0)), 
+		   			str(round(time.time() - start_time, 1)))
 
 	parser = argparse.ArgumentParser()
-	parser.add_argument("--event_gtf", type = str, help = "GTF describing pairwise events")
-	parser.add_argument("--bam", type = str, help = "BAM read file for counting junction reads", required = True)
-	parser.add_argument("--se", action = "store_true", default = False, help = "BAM file is single-ended.  Default assumes paired-end reads.")
-	parser.add_argument("--forward_read", type = str, help = "Specify read that matches the 'forward' strand.  Options are 'R1','R2' or 'unstranded' if the library is unstranded.  Unstranded use is not currently recommended. default = 'R2'", default = "R2")
-	parser.add_argument("--outdir", type = str, help = "Path for output files", required = True)
-	parser.add_argument("--sample_name", type = str, help = "Sample name", required = True)
-	parser.add_argument("--dump_pkl_dict", action = "store_true", help = "Dumps a pkl file of the splice event dict with all quantifications")
-	parser.add_argument("--gzipped", action = "store_true", help = "Output files will be gzipped if set")
-	parser.add_argument("--event_ioe", type = str, help = "Event ioe file - used to recover event-gene association")
-	parser.add_argument("--calc_gene_frac", action = "store_true", help = "Requires IOE file to be passed to --event_ioe.  If set, a maximal event fraction of gene expression will be estimated by max(min_excluded, min_included)/max(gene_junctions)")
-	parser.add_argument("--suppress_output", action = "store_true", help = "Suppresses output files if set")
-	parser.add_argument("--enable_edge_use", action = "store_false", default = True, help = "Use individual exon edges that are unique to form in quantification")
-	parser.add_argument("--turn_off_no_ends", action = "store_false", default = True, help = "Disable the exclusion of transcript-termi from isoform-specific exon edge quantification (default is to exclude ends)")
-	parser.add_argument("--suppress_eij_use", action = "store_true", default = False, help = "Don't use exon-overlapping exon-intron junctions for quantification except for RI events.")
-	parser.add_argument("--disable_ri_extrapolation", action = "store_false", default = True, help = "Disable the use of RI/MR included forms to inform quantification of other events that contain these exons")
-	parser.add_argument("--n_bootstraps", type = int, help = "Number of bootstraps. default = 0", default = 0)
+	parser.add_argument("--event_gtf", 
+						type = str, 
+						help = "GTF describing pairwise events")
+
+	parser.add_argument("--bam", 
+						type = str, 
+						help = "BAM read file for counting junction reads", 
+						required = True)
+
+	parser.add_argument("--se", 
+						action = "store_true", 
+						default = False, 
+						help = "BAM file is single-ended.  Default assumes paired-end reads.")
+
+	parser.add_argument("--forward_read", 
+						type = str, 
+						help = "Specify read that matches the 'forward' strand. " +
+						       "Options are 'R1','R2' or 'unstranded' if the " +
+						       "library is unstranded.  Unstranded use is not " +
+						       "currently recommended. default = 'R2'", 
+						default = "R2")
+
+	parser.add_argument("--outdir", 
+						type = str, 
+						help = "Path for output files", 
+						required = True)
+
+	parser.add_argument("--sample_name", 
+						type = str, 
+						help = "Sample name", 
+						required = True)
+
+	parser.add_argument("--dump_pkl_dict", 
+						action = "store_true", 
+						help = "Dumps a pkl file of the splice event dict with " +
+						 	   "all quantifications")
+
+	parser.add_argument("--gzipped", 
+						action = "store_true",
+						help = "Output files will be gzipped if set")
+
+	parser.add_argument("--event_ioe", 
+						type = str, 
+						help = "Event ioe file - used to recover event-gene association")
+
+	parser.add_argument("--calc_gene_frac", 
+						action = "store_true", 
+						help = "Requires IOE file to be passed to --event_ioe. " + 
+						       "If set, a maximal event fraction of gene expression " + 
+						       "will be estimated by max(min_excluded, " + 
+						       "min_included)/max(gene_junctions)")
+
+	parser.add_argument("--suppress_output", 
+						action = "store_true", 
+						help = "Suppresses output files if set")
+
+	parser.add_argument("--enable_edge_use", 
+						action = "store_false", 
+						default = True, 
+						help = "Use individual exon edges that are unique to form " + 
+							   "in quantification")
+
+	parser.add_argument("--turn_off_no_ends", 
+						action = "store_false", 
+						default = True, 
+						help = "Disable the exclusion of transcript-termini from " +
+							   "isoform-specific exon edge quantification " +
+							   "(default is to exclude ends)")
+
+	parser.add_argument("--suppress_eij_use", 
+						action = "store_true", 
+						default = False, 
+						help = "Don't use exon-overlapping exon-intron junctions " + 
+							   "for quantification except for RI events.")
+
+	parser.add_argument("--disable_ri_extrapolation", 
+						action = "store_false", 
+						default = True, 
+						help = "Disable the use of RI/MR included forms to inform " + 
+						       "quantification of other events that contain these exons")
+
+	parser.add_argument("--n_bootstraps", 
+						type = int, 
+						help = "Number of bootstraps. default = 0", 
+						default = 0)
 
 	args = parser.parse_args(args)
 
@@ -892,9 +1188,13 @@ def main(args, event_dict = None):
 	n_bootstraps = args.n_bootstraps
 	bootstraps = n_bootstraps > 0
 
+
 	if forward_read not in ["R1","R2","unstranded"]:
 
-		sys.exit("Only values R1, R2, or unstranded supported for --forward_read, not " + forward_read + ".")
+		sys.exit("Only values R1, R2, or unstranded supported for " + 
+				 "--forward_read, not " + 
+				 forward_read + 
+				 ".")
 
 	if se:
 
@@ -903,11 +1203,14 @@ def main(args, event_dict = None):
 
 	if event_dict is None and input_gtf is None:
 
-		sys.exit("No input events! Must supply --event_gtf option OR pass event_dict argument to main function.  junctionCounts exiting  . . . ")
+		sys.exit("No input events! Must supply --event_gtf option " + 
+				 "OR pass event_dict argument to main function. " + 
+				 "junctionCounts exiting  . . . ")
 
 	elif event_dict is not None and input_gtf is not None:
 
-		sys.exit("Both event_dict and event_gtf supplied - need to supply one or the other.  junctionCounts exiting  . . . ")
+		sys.exit("Both event_dict and event_gtf supplied - " + 
+				 "need to supply one or the other.  junctionCounts exiting  . . . ")
 
 
 
@@ -915,11 +1218,15 @@ def main(args, event_dict = None):
 
 		if event_ioe == None:
 
-			sys.exit("--calc_gene_frac set without passing IOE file to --event_ioe.  Exiting . . . ")
+			sys.exit("--calc_gene_frac set without passing IOE file to " + 
+				     "--event_ioe.  Exiting . . . ")
 
 	subprocess.call("mkdir -p " + output_directory, shell = True)
 
-	print "{0}: {1} seconds elapsed. Arguments parsed. Now importing event GTF file.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+	print ("{0}: {1} seconds elapsed. Arguments parsed." + 
+		   "Now importing event GTF file."
+		   ).format(str(datetime.now().replace(microsecond = 0)), 
+		            str(round(time.time() - start_time, 1)))
 
 	##Generate event dict
 
@@ -927,16 +1234,21 @@ def main(args, event_dict = None):
 		
 		standard_event_dict = splice_lib.generate_standard_event_dict_chrom_strand(input_gtf)
 
-		splice_lib.complete_event_dict_chrom_strand(standard_event_dict, args.enable_edge_use, args.suppress_eij_use, args.turn_off_no_ends, args.disable_ri_extrapolation)
+		splice_lib.complete_event_dict_chrom_strand(standard_event_dict, 
+													args.enable_edge_use, 
+													args.suppress_eij_use, 
+													args.turn_off_no_ends, 
+													args.disable_ri_extrapolation)
 
 		if bootstraps:
 
 			standard_event_dict_pristine = copy.deepcopy(standard_event_dict) ## maintains a copy with 0 counts for use in bootstrapping
 
 
-	else:
+	else: 
 
 		standard_event_dict = event_dict
+
 
 	event_type_counts = splice_lib.assess_event_types_chrom_strand(standard_event_dict)
 
@@ -944,7 +1256,34 @@ def main(args, event_dict = None):
 
 	#SHOULD BE: 2017-12-11 13:12:24  12.5 seconds elapsed. Did this. Going to do that
 
-	print "{0}: {1} seconds elapsed. Imported event dict.  Found {2} total events with {3} MS, {4} SE, {5} A3, {6} A5, {7} AF, {8} AL, {9} MF, {10} ML, {11} CF, {12} CL, {13} UF, {14} UL, {15} AT, {16} AP, {17} RI, {18} MR, {19} MX, {20} CO and {21} AB events.  Now indexing events by junctions . . . ".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)), str(event_type_counts["total"]), str(event_type_counts["MS"]), str(event_type_counts["SE"]), str(event_type_counts["A3"]), str(event_type_counts["A5"]), str(event_type_counts["AF"]), str(event_type_counts["AL"]), str(event_type_counts["MF"]), str(event_type_counts["ML"]), str(event_type_counts["CF"]), str(event_type_counts["CL"]), str(event_type_counts["UF"]), str(event_type_counts["UL"]), str(event_type_counts["AT"]), str(event_type_counts["AP"]),  str(event_type_counts["RI"]), str(event_type_counts["MR"]), str(event_type_counts["MX"]),  str(event_type_counts["CO"]), str(event_type_counts["AB"]))
+	print ("{0}: {1} seconds elapsed. Imported event dict. " + 
+		   "Found {2} total events with {3} MS, {4} SE, " + 
+		   "{5} A3, {6} A5, {7} AF, {8} AL, {9} MF, {10} ML, " + 
+		   "{11} CF, {12} CL, {13} UF, {14} UL, {15} AT, " + 
+		   "{16} AP, {17} RI, {18} MR, {19} MX, {20} CO and " + 
+		   "{21} AB events.  Now indexing events by junctions . . . "
+		   ).format(str(datetime.now().replace(microsecond = 0)), 
+		            str(round(time.time() - start_time, 1)), 
+		            str(event_type_counts["total"]), 
+		            str(event_type_counts["MS"]), 
+		            str(event_type_counts["SE"]), 
+		            str(event_type_counts["A3"]), 
+		            str(event_type_counts["A5"]), 
+		            str(event_type_counts["AF"]), 
+		            str(event_type_counts["AL"]), 
+		            str(event_type_counts["MF"]), 
+		            str(event_type_counts["ML"]), 
+		            str(event_type_counts["CF"]), 
+		            str(event_type_counts["CL"]), 
+		            str(event_type_counts["UF"]), 
+		            str(event_type_counts["UL"]), 
+		            str(event_type_counts["AT"]), 
+		            str(event_type_counts["AP"]),  
+		            str(event_type_counts["RI"]), 
+		            str(event_type_counts["MR"]), 
+		            str(event_type_counts["MX"]),  
+		            str(event_type_counts["CO"]), 
+		            str(event_type_counts["AB"]))
 
 
 	junction_indexed_event_dict = splice_lib.generate_junction_indexed_event_dict_chrom_strand(standard_event_dict)
@@ -961,74 +1300,176 @@ def main(args, event_dict = None):
 
 	if not args.suppress_eij_use or ri_present:
 
-		print "{0}: {1} seconds elapsed. Events indexed by junction. Now generating exon-intron junction-indexed event dict and nested containment lists for exon-intron junctions.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+		print ("{0}: {1} seconds elapsed. Events indexed by junction. " +
+			   "Now generating exon-intron junction-indexed event dict " + 
+			   "and nested containment lists for exon-intron junctions."
+			   ).format(str(datetime.now().replace(microsecond = 0)), 
+			            str(round(time.time() - start_time, 1)))
 
-		ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict = create_eij_ncls_dict(standard_event_dict)
+		(ncls_by_chrom_strand, 
+		 eij_indexed_event_dict, 
+		 eij_only_count_dict) = create_eij_ncls_dict(standard_event_dict)
 
-		print "{0}: {1} seconds elapsed. Exon-intron junction-indexed event dict and nested containment lists built.  Counting splice and exon-intron junction reads for quantification. This may take a while".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+		print ("{0}: {1} seconds elapsed. Exon-intron " +
+		       "junction-indexed event dict and nested containment " + 
+		       "lists built.  Counting splice and exon-intron junction " +
+		       "reads for quantification. This may take a while"
+		       ).format(str(datetime.now().replace(microsecond = 0)), 
+		                str(round(time.time() - start_time, 1)))
 
 	else:
 
-		print "{0}: {1} seconds elapsed. Events indexed by junction.  Skipping exon-intron junction assessment as no intron retention events (RI or MR) events present and exon-intron junction use for other event types not requested. Now counting junction reads to quantify junction-containing isoforms.  This may take a while.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+		print ("{0}: {1} seconds elapsed. Events indexed by junction. " +
+		       "Skipping exon-intron junction assessment as no intron " + 
+		       "retention events (RI or MR) events present and " + 
+		       "exon-intron junction use for other event types not " + 
+		       "requested. Now counting junction reads to quantify " + 
+		       "junction-containing isoforms.  This may take a while."
+		       ).format(str(datetime.now().replace(microsecond = 0)), 
+		                str(round(time.time() - start_time, 1)))
 
-		ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict = {},{},{}
+		(ncls_by_chrom_strand, 
+		 eij_indexed_event_dict, 
+		 eij_only_count_dict) = {},{},{}
 
 	if bootstraps:
 
 		eij_only_count_dict_pristine = copy.deepcopy(eij_only_count_dict)
 
 
-	all_read_info, n_reads = process_reads(bam_filename, junction_indexed_event_dict, junction_only_count_dict, standard_event_dict, ncls_by_chrom_strand, eij_indexed_event_dict, eij_only_count_dict, output_directory, sample_name, forward_read = forward_read, single_end = se, bootstraps = bootstraps)
+	all_read_info, n_reads = process_reads(bam_filename, 
+										   junction_indexed_event_dict, 
+										   junction_only_count_dict, 
+										   standard_event_dict, 
+										   ncls_by_chrom_strand, 
+										   eij_indexed_event_dict, 
+										   eij_only_count_dict, 
+										   output_directory, 
+										   sample_name, 
+										   forward_read = forward_read, 
+										   single_end = se, 
+										   bootstraps = bootstraps)
 
 	###get counts of each exon edge (i.e. the sum of all junctions involving that exon)
 
 	if not args.enable_edge_use:
-		get_exon_edge_counts(junction_only_count_dict, junction_indexed_event_dict, standard_event_dict)
+		get_exon_edge_counts(junction_only_count_dict, 
+							 junction_indexed_event_dict, 
+							 standard_event_dict)
 	
 
 	if calc_gene_frac:
-		print "{0}: {1} seconds elapsed. Junction counting complete.  Now calculating gene fraction.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+
+		print ("{0}: {1} seconds elapsed. Junction counting complete. " + 
+			   "Now calculating gene fraction."
+			   ).format(str(datetime.now().replace(microsecond = 0)), 
+			            str(round(time.time() - start_time, 1)))
+
 		gene_jc_dict = max_jnc_gene_dict(event_ioe, standard_event_dict)
-		print "{0}: {1} seconds elapsed. Gene fraction calculation complete.  Now calculating PSI values and writing output file.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+
+
+		print ("{0}: {1} seconds elapsed. Gene fraction calculation " +
+			   "complete.  Now calculating PSI values and writing " + 
+			   "output file."
+			   ).format(str(datetime.now().replace(microsecond = 0)), 
+			            str(round(time.time() - start_time, 1)))
+
+
 	else:
+
 		gene_jc_dict = None
-		print "{0}: {1} seconds elapsed Junction counting complete.  Skipping gene fraction calculation. Calculating PSI values and writing output file.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
 
-	calc_psi(standard_event_dict, output_directory, sample_name, gzipped, gene_jc_dict, suppress_output)
+		print ("{0}: {1} seconds elapsed Junction counting complete. " + 
+			   "Skipping gene fraction calculation. Calculating PSI " + 
+			   "values and writing output file."
+			   ).format(str(datetime.now().replace(microsecond = 0)), 
+			            str(round(time.time() - start_time, 1)))
 
-	print "{0}: {1} seconds elapsed. File output complete.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+	calc_psi(standard_event_dict, 
+			 output_directory, 
+			 sample_name, 
+			 gzipped, 
+			 gene_jc_dict, 
+			 suppress_output)
+
+	print ("{0}: {1} seconds elapsed. File output complete."
+		  ).format(str(datetime.now().replace(microsecond = 0)), 
+		           str(round(time.time() - start_time, 1)))
 
 	if dump_pkl_dict:
 
-		print "{0}: {1} seconds elapsed. Dumping event dict pkl file.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
-		pickle.dump(standard_event_dict, open(output_directory + "/" + sample_name + "_junctionCounts_standard_event_dict.pkl", 'wb'), pickle.HIGHEST_PROTOCOL)
+		print ("{0}: {1} seconds elapsed. " + 
+			   "Dumping event dict pkl file."
+			   ).format(str(datetime.now().replace(microsecond = 0)), 
+			            str(round(time.time() - start_time, 1)))
+
+
+		pickle.dump(standard_event_dict, 
+					open(output_directory + 
+						 "/" + 
+						 sample_name + 
+						 "_junctionCounts_standard_event_dict.pkl", 
+						 'wb'), 
+					pickle.HIGHEST_PROTOCOL)
 
 
 	if bootstraps:
 
-		print "{0}: {1} seconds elapsed. Beginning bootstrapping.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+
+		print ("{0}: {1} seconds elapsed. Beginning bootstrapping."
+			).format(str(datetime.now().replace(microsecond = 0)), 
+			         str(round(time.time() - start_time, 1)))
+
 
 		for i in range(0, n_bootstraps):
 
-			print "{0}: {1} seconds elapsed. Beginning bootstrapping round {2}.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)), str(i))
+			print ("{0}: {1} seconds elapsed. " + 
+				   "Beginning bootstrapping round {2}."
+				   ).format(str(datetime.now().replace(microsecond = 0)), 
+				     str(round(time.time() - start_time, 1)), 
+				     str(i))
 
 			junction_only_count_dict_bootstrap = copy.deepcopy(junction_only_count_dict_pristine)
 			standard_event_dict_bootstrap = copy.deepcopy(standard_event_dict_pristine)
 			eij_only_count_dict_bootstrap = copy.deepcopy(eij_only_count_dict_pristine)
 
-			bootstrap_junction_counts(junction_only_count_dict_bootstrap, standard_event_dict_bootstrap, eij_only_count_dict_bootstrap, junction_indexed_event_dict, eij_indexed_event_dict,  n_reads, forward_read, all_read_info)
+			bootstrap_junction_counts(junction_only_count_dict_bootstrap, 
+									  standard_event_dict_bootstrap, 
+									  eij_only_count_dict_bootstrap, 
+									  junction_indexed_event_dict, 
+									  eij_indexed_event_dict,  
+									  n_reads, 
+									  forward_read, 
+									  all_read_info)
 
 			if not args.enable_edge_use:
-				get_exon_edge_counts(junction_only_count_dict_bootstrap, junction_indexed_event_dict, standard_event_dict_bootstrap)
+				get_exon_edge_counts(junction_only_count_dict_bootstrap, 
+									 junction_indexed_event_dict, 
+									 standard_event_dict_bootstrap)
 
-			calc_psi(standard_event_dict_bootstrap, output_directory, sample_name, gzipped, gene_jc_dict, suppress_output, bootstrap_num = i, filename_addendum = "_bootstraps", file_write_mode = "a", header = True if i == 0 else False)
+			calc_psi(standard_event_dict_bootstrap, 
+					 output_directory, 
+					 sample_name, gzipped, 
+					 gene_jc_dict, 
+					 suppress_output, 
+					 bootstrap_num = i, 
+					 filename_addendum = "_bootstraps", 
+					 file_write_mode = "a", 
+					 header = True if i == 0 else False)
 
-			print "{0}: {1} seconds elapsed. Bootstrapping round {2} complete.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)), str(i))
+			print ("{0}: {1} seconds elapsed. Bootstrapping round {2} complete."
+				   ).format(str(datetime.now().replace(microsecond = 0)), 
+				            str(round(time.time() - start_time, 1)), str(i))
 
-		print "{0}: {1} seconds elapsed. Bootstrapping complete.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+		print ("{0}: {1} seconds elapsed. Bootstrapping complete."
+			   ).format(str(datetime.now().replace(microsecond = 0)), 
+			            str(round(time.time() - start_time, 1)))
 
 
-	print "{0}: {1} seconds elapsed. junctionCounts complete.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+	print ("{0}: {1} seconds elapsed. junctionCounts complete."
+		   ).format(str(datetime.now().replace(microsecond = 0)), 
+		            str(round(time.time() - start_time, 1)))
+
 	print "Ceci n'est pas un algorithme bioinformatique."
 
 	return standard_event_dict
