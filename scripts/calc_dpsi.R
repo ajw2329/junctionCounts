@@ -332,16 +332,16 @@ calc_dpsi <- function(events_full_span,
          comparison[1]) %>%
 
      mutate( 
-      cond1_min_PSI_lo = min_PSI_lo, 
-      cond1_max_PSI_hi = max_PSI_hi, 
+      cond1_min_psi_lo = min_psi_lo, 
+      cond1_max_psi_hi = max_psi_hi, 
       cond1_min_jc = min_jc_condition) %>%
 
      select(
       c(
         "event_id",
         "event_type",
-        "cond1_min_PSI_lo",
-        "cond1_max_PSI_hi",
+        "cond1_min_psi_lo",
+        "cond1_max_psi_hi",
         "cond1_min_jc",
         constant_grouping_vars))
 
@@ -352,8 +352,8 @@ calc_dpsi <- function(events_full_span,
          comparison[2]) %>%
 
      mutate(
-      cond2_min_PSI_lo = min_PSI_lo, 
-      cond2_max_PSI_hi = max_PSI_hi, 
+      cond2_min_psi_lo = min_psi_lo, 
+      cond2_max_psi_hi = max_psi_hi, 
       cond2_min_jc = min_jc_condition) %>%
 
      select(
@@ -450,9 +450,9 @@ calculate_span <- function(
 
     mutate(
       min_jc_row = future_pmap_dbl(
-        list(x = min_IJC, y = min_SJC), 
+        list(x = min_ijc, y = min_sjc), 
         function(x,y) max(x,y), .progress = TRUE),
-      sum_jc = min_IJC + min_SJC) %>%
+      sum_jc = min_ijc + min_sjc) %>%
 
     pipeline_message("Starting group_by_at in calculate_span") %>%
 
@@ -463,10 +463,10 @@ calculate_span <- function(
 
     pipeline_message("Finished group_by_at. Starting summarize") %>%
 
-    summarize(lo_na = all(is.na(PSI_lo)),
-           hi_na = all(is.na(PSI_hi)),
-           min_PSI_lo = min(PSI_lo),
-           max_PSI_hi = max(PSI_hi),
+    summarize(lo_na = all(is.na(psi_lo)),
+           hi_na = all(is.na(psi_hi)),
+           min_psi_lo = min(psi_lo),
+           max_psi_hi = max(psi_hi),
            min_jc_condition = min(min_jc_row),
            min_sum_jc = min(sum_jc)) %>%
 
