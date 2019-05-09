@@ -724,7 +724,7 @@ def get_exon_edge_counts(junction_only_count_dict,
 	edge_count_dict = {}
 	edge_indexed_event_dict = {}
 
-	for junction in junction_only_count_dict:
+	for junction, junction_val in junction_only_count_dict.iteritems():
 
 		junction_list = junction.split("_")
 
@@ -737,12 +737,12 @@ def get_exon_edge_counts(junction_only_count_dict,
 		edge_indexed_event_dict.setdefault(edgel, []).extend(junction_indexed_event_dict[junction])
 		edge_indexed_event_dict.setdefault(edger, []).extend(junction_indexed_event_dict[junction])
 
-		edge_count_dict[edgel] += junction_only_count_dict[junction]
-		edge_count_dict[edger] += junction_only_count_dict[junction]
+		edge_count_dict[edgel] += junction_val
+		edge_count_dict[edger] += junction_val
 
-	for edge in edge_indexed_event_dict:
+	for edge, edge_val in edge_indexed_event_dict.iteritems():
 
-		event_forms = set(edge_indexed_event_dict[edge])
+		event_forms = set(edge_val)
 
 		final_event_forms = []
 
