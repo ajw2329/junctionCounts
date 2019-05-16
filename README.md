@@ -40,6 +40,7 @@ AT - alternative transcription start site (tandem UTR)
 AL - alternative polyadenylation (tandem UTR)   
 UF - unique first   
 UL - unique last   
+AB - ambiguous (not shown - these occur in situations where multiple possible event types share the same combination of included, excluded junctions)   
 
 ## Basic usage
 
@@ -115,43 +116,51 @@ python2.7 /path/to/infer_pairwise_events.py --transcript_gtf /path/to/transcript
 
 ## Help statement
 
-usage: infer_pairwise_events.py [-h] [--transcript_gtf TRANSCRIPT_GTF]  
-                                --outdir OUTDIR  
-                                [--min_exon_length MIN_EXON_LENGTH]  
-                                [--min_intron_length MIN_INTRON_LENGTH]  
-                                [--max_exon_length MAX_EXON_LENGTH]  
-                                [--max_intron_length MAX_INTRON_LENGTH]  
-                                [--dump_pkl_file]  
-                                [--bedtools_path BEDTOOLS_PATH]  
-                                [--suppress_output]  
+```
+usage: infer_pairwise_events.py [-h] [--transcript_gtf TRANSCRIPT_GTF]
+                                --outdir OUTDIR
+                                [--min_exon_length MIN_EXON_LENGTH]
+                                [--min_intron_length MIN_INTRON_LENGTH]
+                                [--max_exon_length MAX_EXON_LENGTH]
+                                [--max_intron_length MAX_INTRON_LENGTH]
+                                [--dump_pkl_file]
+                                [--bedtools_path BEDTOOLS_PATH]
+                                [--suppress_output]
+                                [--min_AP_AT_dist MIN_AP_AT_DIST]
 
-optional arguments:  
-  -h, --help            show this help message and exit  
+optional arguments:
+  -h, --help            show this help message and exit
   --transcript_gtf TRANSCRIPT_GTF
                         Full transcript gtf file. Not required, but if not
                         provided a transcript dict must be passed as a
-                        parameter to the main function.  
-  --outdir OUTDIR       Path to output directory  
+                        parameter to the main function.
+  --outdir OUTDIR       Path to output directory
   --min_exon_length MIN_EXON_LENGTH
                         Minimum allowable exon length in input gtf.
                         Transcripts with shorter exons will be filtered.
-                        (default: 3)  
+                        (default: 3)
   --min_intron_length MIN_INTRON_LENGTH
                         Minimum allowable intron length in input gtf.
                         Transcripts with shorter introns will be filtered.
-                        (default: 20)  
+                        (default: 20)
   --max_exon_length MAX_EXON_LENGTH
                         Maximum allowable exon length in input gtf.
                         Transcripts with longer exons will be filtered
-                        (default = 35000)  
+                        (default = 35000)
   --max_intron_length MAX_INTRON_LENGTH
                         Maximum allowable intron length in input gtf.
                         Transcripts with longer introns will be fitlered
-                        (default = 1000000)  
-  --dump_pkl_file       If set, program will dump pickle file of event dict.  
+                        (default = 1000000)
+  --dump_pkl_file       If set, program will dump pickle file of event dict.
   --bedtools_path BEDTOOLS_PATH
-                        Path to bedtools executable (default = 'bedtools')  
-  --suppress_output     If set, GTF, GFF3, and IOE files will not be written.  
+                        Path to bedtools executable (default = 'bedtools')
+  --suppress_output     If set, GTF, GFF3, and IOE files will not be written.
+  --min_AP_AT_dist MIN_AP_AT_DIST
+                        Specifies minimum distance between alternative
+                        polyadenylation sites, TSS in order for AP, AT events
+                        to be retained. Default is 100
+
+```
 
 # junctionCounts.py
 
@@ -165,27 +174,42 @@ python2.7 /path/to/junctionCounts.py --event_gtf /path/to/splice_lib_events.gtf 
 
 ### Output file descriptions
 
-`SRR536342_count_psi_outfile.tsv`
+`h9esc_cyto_jd004_count_psi_outfile.tsv`
 
-| sample_name | event_id   | event_type | min_IJC | min_SJC | IncFormLen | SkipFormLen | PSI             | max_gene_frac | all_IJC                    | all_SJC | span_PSI | PSI_lo | PSI_hi | bootstrap_num |
-|-------------|------------|------------|---------|---------|------------|-------------|-----------------|---------------|----------------------------|---------|----------|--------|--------|---------------|
-| SRR536342   | ML.0005073 | ML         | 0       | 4       | 1          | 1           | 0.941558441558  | 0.0286        | 124,81,1,17,0,87,105,95,70 | 4       | 0.9688   | 0      | 0.9688 | NA            |
-| SRR536342   | RI.0002381 | RI         | 130     | 678     | 1          | 1           | 0.164510166359  | 1             | 130137                     | 678     | 0.0072   | 0.1609 | 0.1681 | NA            |
-| SRR536342   | CF.0001650 | CF         | 24      | 0       | 1          | 1           | 1               | 0.1043        | 31,185,24                  | 0       | 0        | 1      | 1      | NA            |
-| SRR536342   | SE.0009399 | SE         | 75      | 142     | 1          | 1           | 0.351598173516  | 0.4897        | 75,79                      | 142     | 0.0118   | 0.3456 | 0.3575 | NA            |
-| SRR536342   | MF.0012942 | MF         | 0       | 36      | 1          | 1           | 0.0886075949367 | 1             | 7,0                        | 36      | 0.1628   | 0      | 0.1628 | NA            |
-| SRR536342   | MX.0000766 | MX         | 0       | 0       | 1          | 1           | NA              | 0             | 0,0                        | 0,0     | NA       | NA     | NA     | NA            |
-| SRR536342   | CL.0003508 | CL         | 0       | 36      | 1          | 1           | 0.389830508475  | 0.12          | 46,0                       | 36      | 0.561    | 0      | 0.561  | NA            |
-| SRR536342   | CO.0001190 | CO         | 0       | 0       | 1          | 1           | 1               | 0             | 0,0,2                      | 0,0     | NA       | NA     | NA     | NA            |
-| SRR536342   | CL.0002855 | CL         | 177     | 36      | 1          | 1           | 0.830985915493  | 0.594         | 177                        | 36      | 0        | 0.831  | 0.831  | NA            |
-| SRR536342   | CL.0002857 | CL         | 0       | 1       | 1          | 1           | 0               | 0.0135        | 0                          | 1       | 0        | 0      | 0      | NA            |
-| SRR536342   | ML.0009767 | ML         | 16      | 39      | 1          | 1           | 0.285714285714  | 0.9512        | 16                         | 41,39   | 0.0102   | 0.2807 | 0.2909 | NA            |
-| SRR536342   | CL.0009753 | CL         | 14      | 0       | 1          | 1           | 1               | 0.4667        | 17,18,14                   | 0       | 0        | 1      | 1      | NA            |
-| SRR536342   | SE.0005423 | SE         | 8       | 6       | 1          | 1           | 0.720930232558  | 0.0606        | 8,23                       | 6       | 0.2217   | 0.5714 | 0.7931 | NA            |
-| SRR536342   | AF.0003423 | AF         | 12      | 60      | 1          | 1           | 0.166666666667  | 0.625         | 12                         | 60      | 0        | 0.1667 | 0.1667 | NA            |
-| SRR536342   | SE.0005931 | SE         | 0       | 0       | 1          | 1           | NA              | 0             | 0,0                        | 0       | NA       | NA     | NA     | NA            |
-| SRR536342   | SE.0005394 | SE         | 0       | 0       | 1          | 1           | 1               | 0             | 275,0                      | 0       | NA       | NA     | NA     | NA            |
-| SRR536342   | MF.0006829 | MF         | 0       | 11      | 1          | 1           | 0.12            | 0.046         | 0,3                        | 11      | 0.2143   | 0      | 0.2143 | NA            |
+| sample_name      | event_id   | event_type | min_ijc | min_sjc | avg_psi | max_gene_frac | all_ijc     | all_sjc   | avg_ijc       | avg_sjc | span_psi | min_psi | ijc_min_psi | sjc_min_psi | max_psi | ijc_max_psi | sjc_max_psi | mid_psi | bootstrap_num |
+|------------------|------------|------------|---------|---------|---------|---------------|-------------|-----------|---------------|---------|----------|---------|-------------|-------------|---------|-------------|-------------|---------|---------------|
+| h9esc_cyto_jd004 | RI.0024780 | RI         | 2       | 0       | 1.0     | 0.08          | 25,2        | 0         | 13.5          | 0.0     | 0.0      | 1.0     | 25          | 0           | 1.0     | 25          | 0           | 1.0     | NA            |
+| h9esc_cyto_jd004 | RI.0022510 | RI         | 5       | 0       | 1.0     | 0.2           | 5,5         | 0         | 5.0           | 0.0     | 0.0      | 1.0     | 5           | 0           | 1.0     | 5           | 0           | 1.0     | NA            |
+| h9esc_cyto_jd004 | CO.0032123 | CO         | 1       | 0       | 1.0     | 0.0058        | 7,6,1,30,1  | 0,0,0     | 9.0           | 0.0     | 0.0      | 1.0     | 7           | 0           | 1.0     | 7           | 0           | 1.0     | NA            |
+| h9esc_cyto_jd004 | AF.0004999 | AF         | 3       | 0       | 1.0     | 1.0           | 3           | 0         | 3.0           | 0.0     | 0.0      | 1.0     | 3           | 0           | 1.0     | 3           | 0           | 1.0     | NA            |
+| h9esc_cyto_jd004 | CF.0019530 | CF         | 1       | 43      | 0.0227  | 1.0           | 1           | 43        | 1.0           | 43.0    | 0.0      | 0.0227  | 1           | 43          | 0.0227  | 1           | 43          | 0.0227  | NA            |
+| h9esc_cyto_jd004 | CF.0069352 | CF         | 2       | 1       | 0.7579  | 0.0053        | 3,2,6       | 1         | 3.66666666667 | 1.0     | 0.1905   | 0.6667  | 2           | 1           | 0.8571  | 6           | 1           | 0.7619  | NA            |
+| h9esc_cyto_jd004 | ML.0016599 | ML         | 0       | 6       | 0.5895  | 0.0028        | 2010,2114,0 | 545,322,6 | 1374.66666667 | 291.0   | 0.9972   | 0.0     | 0           | 545         | 0.9972  | 2114        | 6           | 0.4986  | NA            |
+| h9esc_cyto_jd004 | ML.0022641 | ML         | 28      | 3       | 0.915   | 0.4828        | 38,28       | 3         | 33.0          | 3.0     | 0.0236   | 0.9032  | 28          | 3           | 0.9268  | 38          | 3           | 0.915   | NA            |
+| h9esc_cyto_jd004 | CL.0039596 | CL         | 9       | 4       | 0.7457  | 0.0336        | 9,21        | 5,4       | 15.0          | 4.5     | 0.1971   | 0.6429  | 9           | 5           | 0.84    | 21          | 4           | 0.7414  | NA            |
+
+
+#### Field descriptions:
+
+`sample_name` : sample name provided by user via --sample_name  
+`event_id` : unique name for event  
+`event_type` : type of event as discussed above  
+`min_ijc` : (integer) minimum read count of all junctions in the included form  
+`min_sjc` : (integer) minimum read count of all junctions in the excluded (skipped) form  
+`avg_psi` : (float) average of all PSI values computed all pairs of included, excluded junction counts  
+`max_gene_frac` : (float) `max(min_ijc, min_sjc)/max_gene_jc` where `max_gene_jc` is the maximum junction count for any junction in the event's gene. Only computed if `--calc_gene_frac` is passed along with an ioe file  
+`all_ijc` : (comma-sep list of integers) list of junction counts for all included form junctions  
+`all_sjc` : (comma-sep list of integers) list of junction counts for all excluded form junctions  
+`avg_ijc` : (float) mean junction count for included form junctions  
+`avg_sjc` : (float) mean junction count for excluded form junctions  
+`span_psi` : (float) `max_psi - min_psi`, i.e. the difference between the largest and smallest PSI values computed using any pair of included, excluded form junction counts. Large spans may indicate unreliability of the PSI estimate for a number of reasons such as partial junction overlap with another event combined with an abundance of multiply counted reads.  
+`min_psi` : (float) minimum of all PSI values computed all pairs of included, excluded junction counts  
+`ijc_min_psi` : (float) included form junction count corresponding to the `min_psi` calculation  
+`sjc_min_psi` : (float) excluded form junction count corresponding to the `min_psi` calculation  
+`max_psi` : (float) maximum of all PSI values computed all pairs of included, excluded junction counts  
+`ijc_max_psi` : (float) included form junction count corresponding to the `max_psi` calculation  
+`sjc_max_psi` : (float) excluded form junction count corresponding to the `max_psi` calculation  
+`mid_psi` : (float) midpoint between `min_psi` and `max_psi`  
 
 
 ### Input file descriptions
@@ -206,3 +230,56 @@ I mapped these data with STAR, augmented GENCODE annotations with stringtie, the
 
 
 ## Help statement
+
+```
+usage: junctionCounts.py [-h] [--event_gtf EVENT_GTF] --bam BAM [--se]
+                         [--forward_read FORWARD_READ] --outdir OUTDIR
+                         --sample_name SAMPLE_NAME [--dump_pkl_dict]
+                         [--gzipped] [--event_ioe EVENT_IOE]
+                         [--calc_gene_frac] [--suppress_output]
+                         [--enable_edge_use] [--turn_off_no_ends]
+                         [--suppress_eij_use] [--disable_ri_extrapolation]
+                         [--n_bootstraps N_BOOTSTRAPS]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --event_gtf EVENT_GTF
+                        GTF describing pairwise events
+  --bam BAM             BAM read file for counting junction reads
+  --se                  BAM file is single-ended. Default assumes paired-end
+                        reads.
+  --forward_read FORWARD_READ
+                        Specify read that matches the 'forward' strand.
+                        Options are 'R1','R2' or 'unstranded' if the library
+                        is unstranded. Unstranded use is not currently
+                        recommended. default = 'R2'
+  --outdir OUTDIR       Path for output files
+  --sample_name SAMPLE_NAME
+                        Sample name
+  --dump_pkl_dict       Dumps a pkl file of the splice event dict with all
+                        quantifications
+  --gzipped             Output files will be gzipped if set
+  --event_ioe EVENT_IOE
+                        Event ioe file - used to recover event-gene
+                        association
+  --calc_gene_frac      Requires IOE file to be passed to --event_ioe. If set,
+                        a maximal event fraction of gene expression will be
+                        estimated by max(min_excluded,
+                        min_included)/max(gene_junctions)
+  --suppress_output     Suppresses output files if set
+  --enable_edge_use     Use individual exon edges that are unique to form in
+                        quantification
+  --turn_off_no_ends    Disable the exclusion of transcript-termini from
+                        isoform-specific exon edge quantification (default is
+                        to exclude ends)
+  --suppress_eij_use    Don't use exon-overlapping exon-intron junctions for
+                        quantification except for RI events.
+  --disable_ri_extrapolation
+                        Disable the use of RI/MR included forms to inform
+                        quantification of other events that contain these
+                        exons
+  --n_bootstraps N_BOOTSTRAPS
+                        Number of bootstraps. default = 0
+```
+
+
