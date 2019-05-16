@@ -770,7 +770,9 @@ def retained_intron_events(outdir, standard_transcript_dict, standard_event_dict
         standard_event_dict[key]["excluded_form_transcripts"] = list(set(standard_event_dict[key]["excluded_form_transcripts"] + excluded_form_transcripts))
 
 
-def separate_jc_friendly_events(standard_event_dict):
+def separate_jc_friendly_events(
+        standard_event_dict,
+        dont_restrict_single_eij):
     '''
         input: standard event dict
         output: two dictionaries, "friendly" and "unfriendly" containing respectively events that can be quantified by junctioncounts in its current form and events that cannot
@@ -783,9 +785,23 @@ def separate_jc_friendly_events(standard_event_dict):
 
     for event in standard_event_dict:
 
-        if (len(standard_event_dict[event]["included_junctions"]) == 0 and len(standard_event_dict[event]["included_ei_junctions"]) == 0) or (len(standard_event_dict[event]["excluded_junctions"]) == 0 and len(standard_event_dict[event]["excluded_ei_junctions"]) == 0):
+        if not dont_restrict_single_eij:
 
-            unfriendly[event] = copy.deepcopy(standard_event_dict[event])
+            if ((len(standard_event_dict[event]["included_junctions"]) == 0 and 
+                 len(standard_event_dict[event]["included_ei_junctions"]) == 0) or 
+                (len(standard_event_dict[event]["excluded_junctions"]) == 0 and 
+                 len(standard_event_dict[event]["excluded_ei_junctions"]) == 0)):
+
+                unfriendly[event] = copy.deepcopy(standard_event_dict[event])
+
+        else:
+
+            if ((len(standard_event_dict[event]["included_junctions"]) == 0 and 
+                 len(standard_event_dict[event]["included_ei_junctions"]) < 2) or 
+                (len(standard_event_dict[event]["excluded_junctions"]) == 0 and 
+                 len(standard_event_dict[event]["excluded_ei_junctions"]) < 2)):
+
+                unfriendly[event] = copy.deepcopy(standard_event_dict[event])         
 
         else:
 
@@ -794,7 +810,11 @@ def separate_jc_friendly_events(standard_event_dict):
     return friendly, unfriendly
 
 
-def output_ioe(outdir, standard_event_dict, standard_transcript_dict, name = "splice_lib_events"):
+def output_ioe(
+        outdir, 
+        standard_event_dict, 
+        standard_transcript_dict, 
+        name = "splice_lib_events"):
     '''
         input: output directory, standard event dict, standard transcript dict, name for output file (not including extension)
         output: IOE files as defined by SUPPA
@@ -802,7 +822,17 @@ def output_ioe(outdir, standard_event_dict, standard_transcript_dict, name = "sp
 
     event_centric_ioe_file = open(outdir + "/" + name + ".ioe", 'w')
 
-    event_centric_ioe_file.write("seqname" + "\t" + "gene_id" + "\t" + "event_id" + "\t" + "included_transcripts" + "\t" + "total_transcripts" + "\n")
+    event_centric_ioe_file.write(
+        "seqname" + 
+        "\t" + 
+        "gene_id" + 
+        "\t" + 
+        "event_id" + 
+        "\t" + 
+        "included_transcripts" + 
+        "\t" + 
+        "total_transcripts" + 
+        "\n")
 
     for event in standard_event_dict:
 
@@ -835,6 +865,7 @@ def main(args, transcript_dict = None):
     parser.add_argument("--bedtools_path", type = str, help = "Path to bedtools executable (default = 'bedtools')", default = "bedtools")
     parser.add_argument("--suppress_output", action = "store_true", help = "If set, GTF, GFF3, and IOE files will not be written.")
     parser.add_argument("--min_AP_AT_dist", type = int, help = "Specifies minimum distance between alternative polyadenylation sites, TSS in order for AP, AT events to be retained. Default is 100", default = 100)
+    parser.add_argument("--dont_restrict_single_eij", action = store_false)
 
     args = parser.parse_args(args)
 
@@ -848,6 +879,7 @@ def main(args, transcript_dict = None):
     bedtools_path = args.bedtools_path
     suppress_output = args.suppress_output
     min_AP_AT_dist = args.min_AP_AT_dist
+    dont_restrict_single_eij = args.dont_restrict_single_eij
 
     if transcript_gtf is None and transcript_dict is None:
 
@@ -929,7 +961,9 @@ def main(args, transcript_dict = None):
 
     print "{0}: {1} seconds elapsed. Event renaming complete.  Now separating events into junctioncounts friendly/unfriendly categories.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
 
-    friendly, unfriendly = separate_jc_friendly_events(standard_event_dict)
+    friendly, unfriendly = separate_jc_friendly_events(
+        standard_event_dict,
+        dont_restrict_single_eij = dont_restrict_single_eij)
 
 
     if not suppress_output:

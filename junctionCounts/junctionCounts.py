@@ -115,27 +115,7 @@ def parse_reads(read_list, forward_read):
 		Some code derived from find_introns() in pysam.
 	'''
 
-	try:
-
-		chrom_list = list(set([i.reference_name for i in read_list]))
-
-	except AttributeError:
-
-		print "WHOOPS"
-		print read_list
-
-		for read in read_list:
-
-			if read:
-
-				print read.is_proper_pair
-				print read.is_secondary
-				print read.is_supplementary
-				print read.query_name
-				print read.reference_name
-
-		return None
-
+	chrom_list = list(set([i.reference_name for i in read_list]))
 
 
 	if len(chrom_list) > 1: ##implies some sort of chimeric read - not currently handled
@@ -893,20 +873,20 @@ def calc_psi(standard_event_dict,
 									   "event_type", 
 									   "min_ijc", 
 									   "min_sjc", 
-									   "psi_avg", 
+									   "avg_psi", 
 									   "max_gene_frac", 
 									   "all_ijc", 
 									   "all_sjc",
 									   "avg_ijc",
 									   "avg_sjc", 
-									   "psi_span", 
-									   "psi_lo",
-									   "ijc_psi_lo",
-									   "sjc_psi_lo",
-									   "psi_hi", 
-									   "ijc_psi_hi",
-									   "sjc_psi_hi",
-									   "psi_mid",
+									   "span_psi", 
+									   "min_psi",
+									   "ijc_min_psi",
+									   "sjc_min_psi",
+									   "max_psi", 
+									   "ijc_max_psi",
+									   "sjc_max_psi",
+									   "mid_psi",
 									   "bootstrap_num"])
 
 			count_psi_outfile.write(header_string + "\n")
