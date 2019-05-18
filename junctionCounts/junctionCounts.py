@@ -22,41 +22,36 @@ def create_eij_ncls_dict(standard_event_dict):
 	eij_only_count_dict = {}
 	ncls_by_chrom_strand = {}
 
-	for chrom, chrom_dict in standard_event_dict.iteritems():
+	for event, event_val in standard_event_dict.iteritems():
 
-		for strand, strand_dict in chrom_dict.iteritems():
+		strand = event_val["strand"]
+		chrom = event_val["chrom"]
 
-			for event, event_val in strand_dict.iteritems():
+		for eij in event_val["included_ei_junctions"]:
 
-				for eij in event_val["included_ei_junctions"]:
+			((eij_by_chrom_strand
+				).setdefault(chrom, {})
+					).setdefault(strand, set()).add(int(eij))
 
-					((eij_by_chrom_strand
-						).setdefault(chrom, {})
-							).setdefault(strand, set()).add(int(eij))
+			eij_index = chrom + "_" + str(eij) + "_" + strand
 
-					eij_index = chrom + "_" + str(eij) + "_" + strand
+			eij_indexed_event_dict.setdefault(
+				eij_index, set()).add(event + "_included")
 
-					(((eij_indexed_event_dict
-						).setdefault(chrom, {})
-							).setdefault(strand, {})
-								).setdefault(eij_index, set()).add(event + "_included")
+			eij_only_count_dict.setdefault(eij_index, 0)
 
-					eij_only_count_dict.setdefault(eij_index, 0)
+		for eij in event_val["excluded_ei_junctions"]:
 
-				for eij in event_val["excluded_ei_junctions"]:
+			((eij_by_chrom_strand
+				).setdefault(chrom, {})
+					).setdefault(strand, set()).add(int(eij))
 
-					((eij_by_chrom_strand
-						).setdefault(chrom, {})
-							).setdefault(strand, set()).add(int(eij))
+			eij_index = chrom + "_" + str(eij) + "_" + strand
 
-					eij_index = chrom + "_" + str(eij) + "_" + strand
+			eij_indexed_event_dict.setdefault(
+				eij_index, set()).add(event + "_excluded")
 
-					(((eij_indexed_event_dict
-						).setdefault(chrom, {})
-							).setdefault(strand, {})
-								).setdefault(eij_index, set()).add(event + "_excluded")
-
-					eij_only_count_dict.setdefault(eij_index, 0)
+			eij_only_count_dict.setdefault(eij_index, 0)
 
 
 	for chrom, chrom_dict in eij_by_chrom_strand.iteritems():
@@ -105,7 +100,7 @@ def read_pair_generator(bam):
 			del read_dict[qname]
 
 
-def parse_reads(read_list, forward_read):
+def parse_reads(read_list, strand_list):
 	'''
 		Takes as input a read or read pair in a list of pysam AlignedSegments, 
 		returns a dictionary containing a list of junctions 
@@ -131,33 +126,13 @@ def parse_reads(read_list, forward_read):
 	junctions = []
 
 
-	if forward_read == "R1":
+	if read_list[0].is_reverse:
 
-		if read_list[0].is_reverse:
-
-			strand = "-"
-
-		else:
-
-			strand = "+"
-
-	elif forward_read == "R2":
-
-		if read_list[1].is_reverse:
-
-			strand = "-"
-
-		else:
-
-			strand = "+"
-
-	elif forward_read == "unstranded":
-
-		strand = ""
+		strand = strand_list[0]
 
 	else:
 
-		sys.exit("Improperly designated forward read in parse_read().  Exiting . . . ")
+		strand = strand_list[1]
 
 
 	#############derived from pysam find_introns()########################
@@ -284,55 +259,80 @@ def process_reads(bam_filename,
 		and adds 1 count to all surviving event matches in the event ID-indexed dictionary.
 	'''
 
+	if forward_read == "R1":
+
+		first_strand = ["-", "+"]
+		stranded_unstranded_fn = assign_reads_stranded
+
+	elif forward_read == "R2":
+
+		strand_list = ["+", "-"]
+		stranded_unstranded_fn = assign_reads_stranded
+
+	elif forward_read == "unstranded":
+
+		strand_list = ["", ""]
+		stranded_unstranded_fn = assign_reads_unstranded
+
+	else:
+
+		sys.exit("Improperly designated forward read in parse_read().  Exiting . . . ")	
+	
+
 
 	bam = pysam.AlignmentFile(bam_filename, 'rb')
 
+
+	idxstats = pysam.idxstats(bam_filename).split("\n")
+
+	read_count = 0
+
+	for i in idxstats:
+
+		entry = i.split()
+		if len(entry) == 4:
+			read_count += int(entry[2])
+
+	size = read_count if single_end else read_count/2
+
+	all_read_info = [None]*size
+
+
+
 	if bootstraps:
 
-		idxstats = pysam.idxstats(bam_filename).split("\n")
-
-		read_count = 0
-
-		for i in idxstats:
-
-			entry = i.split()
-			if len(entry) == 4:
-				read_count += int(entry[2])
-
-		size = read_count if single_end else read_count/2
-
-		all_read_info = [None]*size
+		bootstrap_function = store_for_bootstrapping
 
 	else:
-		size = None
-		all_read_info = []
+
+		bootstrap_function = do_nothing
 
 	list_index_counter = 0
+
 
 	if single_end:
 
 		for read in bam.fetch():
 
 			read_properties = parse_reads([read], 
-										  forward_read)
+										  strand_list)
 
 			if not read_properties:
 				continue
 
-			read_info = assign_reads(read_properties, 
-									 junction_indexed_event_dict, 
-									 junction_only_count_dict, 
-									 standard_event_dict,
-									 ncls_by_chrom_strand,
-									 eij_indexed_event_dict, 
-									 eij_only_count_dict, 
-									 forward_read, 
-									 bootstraps)
+			read_info = assign_reads(
+				 read_properties, 
+				 junction_indexed_event_dict, 
+				 junction_only_count_dict, 
+				 standard_event_dict,
+				 ncls_by_chrom_strand,
+				 eij_indexed_event_dict, 
+				 eij_only_count_dict,
+				 stranded_unstranded_fn = stranded_unstranded_fn, 
+				 bootstrap_function = bootstrap_function)
 
-			if bootstraps:
-
-				all_read_info[list_index_counter] = read_info
-				list_index_counter += 1
+			all_read_info[list_index_counter] = read_info
+			list_index_counter += 1
 
 
 	else:
@@ -340,266 +340,331 @@ def process_reads(bam_filename,
 		for read1, read2 in read_pair_generator(bam):
 
 			read_properties = parse_reads([read1, read2], 
-										  forward_read)
+										  strand_list)
 
 			if not read_properties:
 				continue
 
 			read_info = assign_reads(read_properties, 
-									 junction_indexed_event_dict, 
-									 junction_only_count_dict, 
-									 standard_event_dict, 
-									 ncls_by_chrom_strand,
-									 eij_indexed_event_dict, 
-									 eij_only_count_dict, 
-									 forward_read, 
-									 bootstraps)
+				 junction_indexed_event_dict, 
+				 junction_only_count_dict, 
+				 standard_event_dict, 
+				 ncls_by_chrom_strand,
+				 eij_indexed_event_dict, 
+				 eij_only_count_dict,
+				 stranded_unstranded_fn = stranded_unstranded_fn, 
+				 bootstrap_function = bootstrap_function)
 
-			if bootstraps:
+			all_read_info[list_index_counter] = read_info
+			list_index_counter += 1
 
-				all_read_info[list_index_counter] = read_info
-				list_index_counter += 1
 
 	bam.close()
 
 	return all_read_info, size
 
 
-def assign_reads(read_properties, 
-				 junction_indexed_event_dict, 
-				 junction_only_count_dict, 
-				 standard_event_dict, 
-				 ncls_by_chrom_strand,
-				 eij_indexed_event_dict, 
-				 eij_only_count_dict, 
-				 forward_read, 
-				 bootstraps):
 
-		exons = read_properties["exons"]
-		junctions = read_properties["junctions"]
-		strand = read_properties["strand"]
-		chrom = read_properties["chrom"]
 
-		overlapping_eij = set()
+def append_matching(
+		candidate_isoforms,
+		matching_events, 
+		junction_dict, 
+		junction):		
 
-		candidate_isoforms = []
+	if matching_events not in candidate_isoforms:
 
-		event_junction_dict = {}
-		event_eij_dict = {}
-		possible_strands = set() ### for use when forward_read == "unstranded"
+		candidate_isoforms.append(matching_events)	
 
+	for matching_event in matching_events:
 
-		if forward_read != "unstranded":
+		junction_dict.setdefault(matching_event, set()).add(junction)
 
-			for junction in junctions:
 
-				if chrom in junction_indexed_event_dict:
 
-					if strand in junction_indexed_event_dict[chrom]: 
+def reduce_candidates(
+		candidate_isoforms,
+		event_junction_dict,
+		event_eij_dict):
 
-						if junction in junction_indexed_event_dict[chrom][strand]:
+	minimal_candidate_isoform_list = intersection_collapse(candidate_isoforms)
 
-							#junction_only_count_dict[chrom][strand][junction] += 1
+	#print minimal_candidate_isoform_list
+	#print event_junction_dict
+	#print event_eij_dict
 
-							matching_events = junction_indexed_event_dict[chrom][strand][junction][:]
+	minimal_candidate_isoform_list_flat = [i for j in minimal_candidate_isoform_list for i in j]
 
-							if matching_events not in candidate_isoforms:
+	## discard events from event_junction_dict and event_eij_dict that are eliminated by intersection_collapse
 
-								candidate_isoforms.append(matching_events)
+	event_junction_dict = {k:v for k,v in event_junction_dict.items() 
+						   if k in minimal_candidate_isoform_list_flat}
 
-							for matching_event in matching_events:
 
-								event_junction_dict.setdefault(matching_event, set()).add(junction)
+	event_eij_dict = {k:v for k,v in event_eij_dict.items() 
+					  if k in minimal_candidate_isoform_list_flat}
 
-			for exon in exons:
+	return event_junction_dict, event_eij_dict
 
-				if chrom in ncls_by_chrom_strand:
 
-					if strand in ncls_by_chrom_strand[chrom]:
+def store_for_bootstrapping(
+		event_junction_dict,
+		event_eij_dict,
+		chrom,
+		strand):
 
-						[overlapping_eij.add(chrom + "_" + str(i[0] + 1) + "_" + strand) 
-						 for i in 
-						 ncls_by_chrom_strand[chrom][strand].find_overlap(exon[0], exon[1])]
-
-
-			for eij in overlapping_eij:
-
-				if chrom in eij_indexed_event_dict:
-
-					if strand in eij_indexed_event_dict[chrom]:
-
-						if eij in eij_indexed_event_dict[chrom][strand]:
-
-							#eij_only_count_dict[eij] += 1
-
-							matching_events = list(eij_indexed_event_dict[chrom][strand][eij])
-
-							if matching_events not in candidate_isoforms:
-
-								candidate_isoforms.append(matching_events)
-
-							for matching_event in matching_events:
-
-								event_eij_dict.setdefault(matching_event, set()).add(eij)
-
-		else:
-
-			junctions = [i + "+" for i in junctions] + [i + "-" for i in junctions]
-
-			for junction in junctions:
-
-				if chrom in junction_indexed_event_dict:
-
-					for local_strand in junction_indexed_event_dict[chrom]: 
-
-						if junction in junction_indexed_event_dict[chrom][local_strand]:
-
-							possible_strands.add(local_strand)
-
-							#junction_only_count_dict[chrom][strand][junction] += 1
-
-							matching_events = junction_indexed_event_dict[chrom][local_strand][junction]
-
-							if matching_events not in candidate_isoforms:
-
-								candidate_isoforms.append(matching_events)	
-
-							for matching_event in matching_events:
-
-								event_junction_dict.setdefault(matching_event, set()).add(junction)
-
-			for exon in exons:
-
-				if chrom in ncls_by_chrom_strand:
-
-					for local_strand in ncls_by_chrom_strand[chrom]:
-
-						[overlapping_eij.add(chrom + "_" + str(i[0] + 1) + "_" + local_strand) 
-						 for i in 
-						 ncls_by_chrom_strand[chrom][local_strand].find_overlap(exon[0], exon[1])]
-
-
-			for eij in overlapping_eij:
-
-				if chrom in eij_indexed_event_dict:
-
-					test_strand = eij.split("_")[-1]
-
-					if test_strand in eij_indexed_event_dict[chrom]:
-
-						if eij in eij_indexed_event_dict[chrom][test_strand]:
-
-							possible_strands.add(test_strand)
-
-							#eij_only_count_dict[eij] += 1
-							matching_events = list(eij_indexed_event_dict[chrom][test_strand][eij])
-
-							if matching_events not in candidate_isoforms:
-
-								candidate_isoforms.append(matching_events)
-
-							for matching_event in matching_events:
-
-								event_eij_dict.setdefault(matching_event, set()).add(eij)
-
-
-		if len(candidate_isoforms) > 0:
-
-			minimal_candidate_isoform_list = intersection_collapse(candidate_isoforms)
-
-			#print minimal_candidate_isoform_list
-			#print event_junction_dict
-			#print event_eij_dict
-
-			minimal_candidate_isoform_list_flat = [i for j in minimal_candidate_isoform_list for i in j]
-
-			## discard events from event_junction_dict and event_eij_dict that are eliminated by intersection_collapse
-
-			event_junction_dict = {k:v for k,v in event_junction_dict.items() 
-								   if k in minimal_candidate_isoform_list_flat}
-
-
-			event_eij_dict = {k:v for k,v in event_eij_dict.items() 
-							  if k in minimal_candidate_isoform_list_flat}
-
-			#standard_event_dict[chrom][strand][event_id][event_form + "_" + "count"] += 1 ## total count
-
-			if forward_read != "unstranded":
-
-				for j in event_junction_dict:
-
-					identifier = j.split("_")
-					event_id = "_".join(identifier[0:-1])
-					event_form = identifier[-1]
-
-					for junction in event_junction_dict[j]:
-
-						standard_event_dict[chrom][strand][event_id][event_form + "_junction_counts"][junction] += 1
-
-				for j in event_eij_dict:
-
-					identifier = j.split("_")
-					event_id = "_".join(identifier[0:-1])
-					event_form = identifier[-1]
-
-					for eij in event_eij_dict[j]:
-
-						standard_event_dict[chrom][strand][event_id][event_form + "_junction_counts"][eij] += 1
-
-			else:
-
-				for j in event_junction_dict:
-
-					for junction in event_junction_dict[j]:
-
-						for test_strand in possible_strands:
-
-							if event_id in standard_event_dict[chrom][test_strand]:
-
-								standard_event_dict[chrom][test_strand][event_id][event_form + "_junction_counts"][junction] += 1
-
-
-				for j in event_eij_dict:
-
-					for eij in event_eij_dict[j]:
-
-						for test_strand in possible_strands:
-
-							if event_id in standard_event_dict[chrom][test_strand]:
-
-								standard_event_dict[chrom][test_strand][event_id][event_form + "_junction_counts"][eij] += 1
-
-
-		else:
-
-			minimal_candidate_isoform_list = []
-
-		if bootstraps:
-
-			## convert to strings for h5py storage
-
-			event_junction_dict_list = "=".join([event + ":" + ",".join(junctions) 
+	event_junction_dict_list = "=".join([event + ":" + ",".join(junctions) 
 												 for event, junctions in 
 												 event_junction_dict.items()])
 
-			event_eij_dict_list = "=".join([event + ":" + ",".join(eij) 
-				 							for event, eij in 
-				 							event_eij_dict.items()])
+	event_eij_dict_list = "=".join([event + ":" + ",".join(eij) 
+		 							for event, eij in 
+		 							event_eij_dict.items()])
 
-			possible_strands = ",".join(possible_strands)
+	#read_info = {"minimal_candidate_isoform_list": minimal_candidate_isoform_list,
+	#			 "junctions": event_junction_dict,
+	#			 "eij": event_eij_dict,
+	#			 "chrom": chrom,
+	#			 "strand": strand,
+	#			 "possible_strands": possible_strands}
 
-			#read_info = {"minimal_candidate_isoform_list": minimal_candidate_isoform_list,
-			#			 "junctions": event_junction_dict,
-			#			 "eij": event_eij_dict,
-			#			 "chrom": chrom,
-			#			 "strand": strand,
-			#			 "possible_strands": possible_strands}
+	return "&".join([event_junction_dict_list, 
+					 event_eij_dict_list, 
+					 chrom, 
+					 strand])
 
-			return "&".join([event_junction_dict_list, 
-							 event_eij_dict_list, 
-							 chrom, 
-							 strand, 
-							 possible_strands])
+
+def do_nothing(*args):
+
+	pass
+
+
+
+def assign_reads(
+			 read_properties, 
+			 junction_indexed_event_dict, 
+			 junction_only_count_dict, 
+			 standard_event_dict, 
+			 ncls_by_chrom_strand,
+			 eij_indexed_event_dict, 
+			 eij_only_count_dict,
+			 stranded_unstranded_fn, 
+			 bootstrap_function):
+
+	exons = read_properties["exons"]
+	junctions = read_properties["junctions"]
+	strand = read_properties["strand"]
+	chrom = read_properties["chrom"]
+
+	overlapping_eij = set()
+
+	candidate_isoforms = []
+
+	event_junction_dict = {}
+	event_eij_dict = {}
+	possible_strands = set() 
+	### for use when forward_read == "unstranded"
+
+	stranded_unstranded_fn(
+		exons,
+		junctions,
+		strand,
+		chrom,
+		overlapping_eij,
+		candidate_isoforms,
+		ncls_by_chrom_strand,
+		event_junction_dict,
+		event_eij_dict,
+		possible_strands,
+		standard_event_dict,
+		junction_indexed_event_dict,
+		eij_indexed_event_dict,
+		junction_only_count_dict,
+		eij_only_count_dict)
+
+	return bootstrap_function(
+				event_junction_dict,
+				event_eij_dict,
+				chrom,
+				strand)
+
+
+
+def assign_reads_stranded(
+		exons,
+		junctions,
+		strand,
+		chrom,
+		overlapping_eij,
+		candidate_isoforms,
+		ncls_by_chrom_strand,
+		event_junction_dict,
+		event_eij_dict,
+		possible_strands,
+		standard_event_dict,
+		junction_indexed_event_dict,
+		eij_indexed_event_dict,
+		junction_only_count_dict,
+		eij_only_count_dict):
+
+	for junction in junctions:
+
+		if junction in junction_indexed_event_dict:
+
+			#junction_only_count_dict[chrom][strand][junction] += 1
+
+			matching_events = junction_indexed_event_dict[junction][:]
+
+			append_matching(
+				candidate_isoforms,
+				matching_events, 
+				event_junction_dict, 
+				junction)
+
+	if chrom in ncls_by_chrom_strand:
+
+		if strand in ncls_by_chrom_strand[chrom]:
+
+			for exon in exons:
+
+				[overlapping_eij.add(chrom + "_" + str(i[0] + 1) + "_" + strand) 
+				 for i in 
+				 ncls_by_chrom_strand[chrom][strand].find_overlap(exon[0], exon[1])]
+
+
+	for eij in overlapping_eij:
+
+		if eij in eij_indexed_event_dict:
+
+			#eij_only_count_dict[eij] += 1
+
+			matching_events = list(eij_indexed_event_dict[eij])
+
+			append_matching(
+				candidate_isoforms,
+				matching_events, 
+				event_eij_dict, 
+				eij)
+
+
+	if len(candidate_isoforms) > 0:
+
+		event_junction_dict, event_eij_dict = reduce_candidates(
+												candidate_isoforms,
+												event_junction_dict,
+												event_eij_dict)
+
+
+	for j in event_junction_dict:
+
+		identifier = j.split("_")
+		event_id = "_".join(identifier[0:-1])
+		event_form = identifier[-1]
+
+		for junction in event_junction_dict[j]:
+
+			standard_event_dict[event_id][event_form + "_junction_counts"][junction] += 1
+
+	for j in event_eij_dict:
+
+		identifier = j.split("_")
+		event_id = "_".join(identifier[0:-1])
+		event_form = identifier[-1]
+
+		for eij in event_eij_dict[j]:
+
+			standard_event_dict[event_id][event_form + "_junction_counts"][eij] += 1
+
+
+
+def assign_reads_unstranded(
+		exons,
+		junctions,
+		strand,
+		chrom,
+		overlapping_eij,
+		candidate_isoforms,
+		ncls_by_chrom_strand,
+		event_junction_dict,
+		event_eij_dict,
+		possible_strands,
+		standard_event_dict,
+		junction_indexed_event_dict,
+		eij_indexed_event_dict,
+		junction_only_count_dict,
+		eij_only_count_dict):
+
+	junctions = [i + "+" for i in junctions] + [i + "-" for i in junctions]
+
+	for junction in junctions:
+
+		matching_events = junction_indexed_event_dict.get(junction)
+
+		if matching_events:
+
+			local_strand = i.split("_")[-1]
+
+			possible_strands.add(local_strand)
+
+			#junction_only_count_dict[chrom][strand][junction] += 1
+
+			append_matching(
+				matching_events, 
+				event_junction_dict, 
+				junction)
+
+	for exon in exons:
+
+		ncls_by_chrom_strand_chrom_entry = ncls_by_chrom_strand.get(chrom)
+
+		if ncls_by_chrom_strand_chrom_entry:
+
+			for local_strand in ncls_by_chrom_strand_chrom_entry:
+
+				[overlapping_eij.add(chrom + "_" + str(i[0] + 1) + "_" + local_strand) 
+				 for i in 
+				 ncls_by_chrom_strand[chrom][local_strand].find_overlap(exon[0], exon[1])]
+
+
+	for eij in overlapping_eij:
+
+		matching_events_set = eij_indexed_event_dict.get(eij)
+
+		if matching_events_set:
+
+			test_strand = eij.split("_")[-1]
+
+			possible_strands.add(test_strand)
+
+			#eij_only_count_dict[eij] += 1
+			matching_events = list(matching_events_set)
+
+			append_matching(
+				matching_events, 
+				event_eij_dict, 
+				eij)
+
+
+	if len(candidate_isoforms) > 0:
+
+		event_junction_dict, event_eij_dict = reduce_candidates(
+												candidate_isoforms,
+												event_junction_dict,
+												event_eij_dict)
+
+		for j in event_junction_dict:
+
+			for junction in event_junction_dict[j]:
+
+				standard_event_dict[event_id][event_form + "_junction_counts"][junction] += 1
+
+
+		for j in event_eij_dict:
+
+			for eij in event_eij_dict[j]:
+
+				standard_event_dict[event_id][event_form + "_junction_counts"][eij] += 1
+
 
 
 def bootstrap_junction_counts(junction_only_count_dict, 
@@ -608,7 +673,6 @@ def bootstrap_junction_counts(junction_only_count_dict,
 						  	  junction_indexed_event_dict, 
 						  	  eij_indexed_event_dict, 
 						  	  n_reads, 
-						  	  forward_read, 
 						  	  all_read_info):
 
 
@@ -628,60 +692,27 @@ def bootstrap_junction_counts(junction_only_count_dict,
 
 		chrom = read[2]
 		strand = read[3]
-		possible_strands = read[4].split(",")
+
+		for j in event_junction_dict_list:
+
+			identifier = j[0].split("_")				
+			event_id = "_".join(identifier[0:-1])
+			event_form = identifier[-1]
+
+			for junction in j[1]:
+
+				standard_event_dict[event_id][event_form + "_junction_counts"][junction] += 1
 
 
-		if forward_read != "unstranded":
+		for j in event_eij_dict_list:
 
-			for j in event_junction_dict_list:
+			identifier = j[0].split("_")				
+			event_id = "_".join(identifier[0:-1])
+			event_form = identifier[-1]
 
-				identifier = j[0].split("_")				
-				event_id = "_".join(identifier[0:-1])
-				event_form = identifier[-1]
+			for eij in j[1]:
 
-				for junction in j[1]:
-
-					standard_event_dict[chrom][strand][event_id][event_form + "_junction_counts"][junction] += 1
-
-
-			for j in event_eij_dict_list:
-
-				identifier = j[0].split("_")				
-				event_id = "_".join(identifier[0:-1])
-				event_form = identifier[-1]
-
-				for eij in j[1]:
-
-					standard_event_dict[chrom][strand][event_id][event_form + "_junction_counts"][eij] += 1
-
-		else:
-
-			for j in event_junction_dict_list:
-
-				identifier = j[0].split("_")				
-				event_id = "_".join(identifier[0:-1])
-				event_form = identifier[-1]
-
-				for test_strand in possible_strands:
-
-					if event_id in standard_event_dict[chrom][test_strand]:
-
-						standard_event_dict[chrom][test_strand][event_id][event_form + "_junction_counts"][junction] += 1
-
-
-			for eij in event_eij_dict_list:
-
-				identifier = j[0].split("_")				
-				event_id = "_".join(identifier[0:-1])
-				event_form = identifier[-1]
-
-				for test_strand in possible_strands:
-
-					if event_id in standard_event_dict[chrom][test_strand]:
-
-						standard_event_dict[chrom][test_strand][event_id][event_form + "_junction_counts"][eij] += 1
-
-
+				standard_event_dict[event_id][event_form + "_junction_counts"][eij] += 1
 
 
 
@@ -769,53 +800,31 @@ def max_jnc_gene_dict(event_ioe,
 		gene = entry[1].strip()
 		event = entry[2].strip().split(";")[1]
 
-		gene_event_dict.setdefault(gene, {"chrom": [], "events": []})
-
-		if event not in gene_event_dict[gene]["events"]:
-			gene_event_dict[gene]["events"].append(event)
-
-		if chrom not in gene_event_dict[gene]["chrom"]:
-			gene_event_dict[gene]["chrom"].append(chrom)
+		gene_event_dict.setdefault(gene, []).append(event)
 
 	###Collect junction counts from event_dict
 
 	gene_jc_dict = {}
 
-	for gene in gene_event_dict:
+	for gene, event_list in gene_event_dict.iteritems():
 
-		for event in gene_event_dict[gene]["events"]:
+		for event in event_list:
 
-			assigned = False
+			event_entry = standard_event_dict.get(event)
 
-			for c in gene_event_dict[gene]["chrom"]:
+			if event_entry:
 
-				for s in standard_event_dict[c]:
+				event_entry.setdefault("gene", set()).add(gene)
 
-					if event in standard_event_dict[c][s]:
+				gene_jc_dict.setdefault(gene, [])
 
-						chrom = c
-						strand = s
-						assigned = True
+				gene_jc_entry = gene_jc_dict[gene]
 
-			if not assigned:
+				for form in ["included", "excluded"]:
 
-				sys.exit("Can't find event in event dict during max_jnc_gene_dict")
+					for junc_val in event_entry[form + "_junction_counts"].itervalues():
 
-			if "gene" not in standard_event_dict[chrom][strand][event]:
-				standard_event_dict[chrom][strand][event]["gene"] = [gene]
-			else:
-				if gene not in standard_event_dict[chrom][strand][event]["gene"]:
-					standard_event_dict[chrom][strand][event]["gene"].append(gene)
-
-			if gene not in gene_jc_dict:
-
-				gene_jc_dict[gene] = []
-
-			for form in ["included", "excluded"]:
-
-				for junction in standard_event_dict[chrom][strand][event][form + "_junction_counts"]:
-
-					gene_jc_dict[gene].append(standard_event_dict[chrom][strand][event][form + "_junction_counts"][junction])
+						gene_jc_entry.append(junc_val)
 
 	return gene_jc_dict
 
@@ -892,165 +901,161 @@ def calc_psi(standard_event_dict,
 			count_psi_outfile.write(header_string + "\n")
 
 
-	for chrom, chrom_entry in standard_event_dict.iteritems():
+	for event, event_entry in standard_event_dict.iteritems():
 
-		for strand, strand_entry in chrom_entry.iteritems():
-
-			for event, event_entry in strand_entry.iteritems():
-
-				included_counts = [ event_entry["included_junction_counts"][i] 
-									for i in 
-									event_entry["included_junction_counts"] ]
+		included_counts = [ event_entry["included_junction_counts"][i] 
+							for i in 
+							event_entry["included_junction_counts"] ]
 
 
-				try:
-					min_included = min(included_counts)
-				except:
-					print chrom, strand, event
-					print standard_event_dict[chrom][strand][event]
+		try:
+			min_included = min(included_counts)
+		except:
+			print chrom, strand, event
+			print standard_event_dict[chrom][strand][event]
 
 
 
-				avg_included = float(sum(included_counts))/float(len(included_counts))
+		avg_included = float(sum(included_counts))/float(len(included_counts))
 
-				excluded_counts = [ event_entry["excluded_junction_counts"][i] 
-									for i in 
-									event_entry["excluded_junction_counts"] ]
+		excluded_counts = [ event_entry["excluded_junction_counts"][i] 
+							for i in 
+							event_entry["excluded_junction_counts"] ]
 
 
-				min_excluded = min(excluded_counts)
-				avg_excluded = float(sum(excluded_counts))/float(len(excluded_counts))
+		min_excluded = min(excluded_counts)
+		avg_excluded = float(sum(excluded_counts))/float(len(excluded_counts))
 
-				if min_included + min_excluded > 0:
+		if min_included + min_excluded > 0:
 
-					psi_min_counts = round(float(min_included)/(float(min_included) + float(min_excluded)), 4)
+			psi_min_counts = round(float(min_included)/(float(min_included) + float(min_excluded)), 4)
 
-					all_psi_values = []
-					all_psi_values_count_pairs = []
+			all_psi_values = []
+			all_psi_values_count_pairs = []
 
-					for i in included_counts:
+			for i in included_counts:
 
-						for j in excluded_counts:
+				for j in excluded_counts:
 
-							temp_PSI = float(i)/(float(i) + float(j))
-							all_psi_values.append(temp_PSI)
-							all_psi_values_count_pairs.append((i,j))
+					temp_PSI = float(i)/(float(i) + float(j))
+					all_psi_values.append(temp_PSI)
+					all_psi_values_count_pairs.append((i,j))
 
-					psi_span = round(max(all_psi_values) - min(all_psi_values), 4)
+			psi_span = round(max(all_psi_values) - min(all_psi_values), 4)
 
-					psi_avg = round((sum(all_psi_values)/len(all_psi_values)), 4)
+			psi_avg = round((sum(all_psi_values)/len(all_psi_values)), 4)
 
-					psi_lo_full = min(all_psi_values)
-					psi_lo = round(psi_lo_full, 4)
-					psi_lo_count_pair = all_psi_values_count_pairs[ all_psi_values.index(psi_lo_full) ]
-					psi_lo_inc_counts = psi_lo_count_pair[0]
-					psi_lo_exc_counts = psi_lo_count_pair[1]
+			psi_lo_full = min(all_psi_values)
+			psi_lo = round(psi_lo_full, 4)
+			psi_lo_count_pair = all_psi_values_count_pairs[ all_psi_values.index(psi_lo_full) ]
+			psi_lo_inc_counts = psi_lo_count_pair[0]
+			psi_lo_exc_counts = psi_lo_count_pair[1]
 
-					psi_hi_full = max(all_psi_values)
-					psi_hi = round(psi_hi_full, 4)
-					psi_hi_count_pair = all_psi_values_count_pairs[ all_psi_values.index(psi_hi_full) ]
-					psi_hi_inc_counts = psi_hi_count_pair[0]
-					psi_hi_exc_counts = psi_hi_count_pair[1]
+			psi_hi_full = max(all_psi_values)
+			psi_hi = round(psi_hi_full, 4)
+			psi_hi_count_pair = all_psi_values_count_pairs[ all_psi_values.index(psi_hi_full) ]
+			psi_hi_inc_counts = psi_hi_count_pair[0]
+			psi_hi_exc_counts = psi_hi_count_pair[1]
 
-					psi_mid = round((psi_hi_full + psi_lo_full)/2, 4)
+			psi_mid = round((psi_hi_full + psi_lo_full)/2, 4)
+
+		else:
+
+			psi_avg = "NA"
+			psi_min_counts = "NA"
+			psi_span = "NA"
+			psi_lo = "NA"
+			psi_lo_inc_counts = "NA"
+			psi_lo_exc_counts = "NA"
+			psi_hi = "NA"
+			psi_hi_inc_counts = "NA"
+			psi_hi_exc_counts = "NA"
+			psi_mid = "NA"
+
+
+		if avg_included + avg_excluded > 0:
+
+			psi_avg_counts = float(avg_included)/(float(avg_included) + float(avg_excluded))
+
+		else:
+			psi_avg_counts = "NA"
+
+		if gene_jc_dict != None:
+			if "gene" in event_entry:
+
+				genes_max_jn = []
+
+				for gene in event_entry["gene"]: ### looped in case event "belongs" to multiple genes
+
+					genes_max_jn.append(max(gene_jc_dict[gene]))
+
+				gene_max_jn = max(genes_max_jn)
+
+				if gene_max_jn > 0:
+
+					event_max_frac = round(
+											max(
+												(float(min_included)/gene_max_jn), 
+												(float(min_excluded)/gene_max_jn)
+												),
+											4)
 
 				else:
 
-					psi_avg = "NA"
-					psi_min_counts = "NA"
-					psi_span = "NA"
-					psi_lo = "NA"
-					psi_lo_inc_counts = "NA"
-					psi_lo_exc_counts = "NA"
-					psi_hi = "NA"
-					psi_hi_inc_counts = "NA"
-					psi_hi_exc_counts = "NA"
-					psi_mid = "NA"
-
-
-				if avg_included + avg_excluded > 0:
-
-					psi_avg_counts = float(avg_included)/(float(avg_included) + float(avg_excluded))
-
-				else:
-					psi_avg_counts = "NA"
-
-				if gene_jc_dict != None:
-					if "gene" in event_entry:
-
-						genes_max_jn = []
-
-						for gene in event_entry["gene"]: ### looped in case event "belongs" to multiple genes
-
-							genes_max_jn.append(max(gene_jc_dict[gene]))
-
-						gene_max_jn = max(genes_max_jn)
-
-						if gene_max_jn > 0:
-
-							event_max_frac = round(
-													max(
-														(float(min_included)/gene_max_jn), 
-														(float(min_excluded)/gene_max_jn)
-														),
-													4)
-
-						else:
-
-							event_max_frac = "NA"
-					else:
-						event_max_frac = "NA"
-				else:
 					event_max_frac = "NA"
+			else:
+				event_max_frac = "NA"
+		else:
+			event_max_frac = "NA"
 
-				event_entry["avg_counts_psi"] = psi_avg_counts
-				event_entry["psi_avg"] = psi_avg
-				event_entry["psi_min_counts"] = psi_min_counts
-				event_entry["psi_span"] = psi_span
-				event_entry["psi_lo"] = psi_lo
-				event_entry["psi_lo_inc_counts"] = psi_lo_inc_counts
-				event_entry["psi_lo_exc_counts"] = psi_lo_exc_counts
-				event_entry["psi_hi_inc_counts"] = psi_hi_inc_counts
-				event_entry["psi_hi_exc_counts"] = psi_hi_exc_counts
-				event_entry["psi_hi"] = psi_hi
-				event_entry["psi_mid"] = psi_mid
-				event_entry["event_max_frac"] = event_max_frac
-				event_entry["min_included"] = min_included
-				event_entry["min_excluded"] = min_excluded
-				event_entry["avg_included"] = avg_included
-				event_entry["avg_excluded"] = avg_excluded
-				event_entry["all_included_counts"] = ",".join(map(str, included_counts))
-				event_entry["all_excluded_counts"] = ",".join(map(str, excluded_counts))
+		event_entry["avg_counts_psi"] = psi_avg_counts
+		event_entry["psi_avg"] = psi_avg
+		event_entry["psi_min_counts"] = psi_min_counts
+		event_entry["psi_span"] = psi_span
+		event_entry["psi_lo"] = psi_lo
+		event_entry["psi_lo_inc_counts"] = psi_lo_inc_counts
+		event_entry["psi_lo_exc_counts"] = psi_lo_exc_counts
+		event_entry["psi_hi_inc_counts"] = psi_hi_inc_counts
+		event_entry["psi_hi_exc_counts"] = psi_hi_exc_counts
+		event_entry["psi_hi"] = psi_hi
+		event_entry["psi_mid"] = psi_mid
+		event_entry["event_max_frac"] = event_max_frac
+		event_entry["min_included"] = min_included
+		event_entry["min_excluded"] = min_excluded
+		event_entry["avg_included"] = avg_included
+		event_entry["avg_excluded"] = avg_excluded
+		event_entry["all_included_counts"] = ",".join(map(str, included_counts))
+		event_entry["all_excluded_counts"] = ",".join(map(str, excluded_counts))
 
 
-				if not suppress_output:
+		if not suppress_output:
 
-					###below "1" is now used for included and excluded numbers of junctions. 
-					###The normalization for junction number is not needed as only a 
-					###single count value is used for numerator and denominator now.
+			###below "1" is now used for included and excluded numbers of junctions. 
+			###The normalization for junction number is not needed as only a 
+			###single count value is used for numerator and denominator now.
 
-					output_entry = "\t".join([sample_name,
-											  event,
-											  event_entry["event_type"],
-											  str(min_included),
-											  str(min_excluded),
-											  str(psi_avg),
-											  str(event_max_frac),
-											  ",".join(map(str, included_counts)),
-											  ",".join(map(str, excluded_counts)),
-											  str(avg_included),
-											  str(avg_excluded),
-											  str(psi_span),
-											  str(psi_lo),
-											  str(psi_lo_inc_counts),
-											  str(psi_lo_exc_counts),
-											  str(psi_hi),
-											  str(psi_hi_inc_counts),
-											  str(psi_hi_exc_counts),
-											  str(psi_mid),
-											  str(bootstrap_num)])
+			output_entry = "\t".join([sample_name,
+									  event,
+									  event_entry["event_type"],
+									  str(min_included),
+									  str(min_excluded),
+									  str(psi_avg),
+									  str(event_max_frac),
+									  ",".join(map(str, included_counts)),
+									  ",".join(map(str, excluded_counts)),
+									  str(avg_included),
+									  str(avg_excluded),
+									  str(psi_span),
+									  str(psi_lo),
+									  str(psi_lo_inc_counts),
+									  str(psi_lo_exc_counts),
+									  str(psi_hi),
+									  str(psi_hi_inc_counts),
+									  str(psi_hi_exc_counts),
+									  str(psi_mid),
+									  str(bootstrap_num)])
 
-					count_psi_outfile.write(output_entry + "\n")
+			count_psi_outfile.write(output_entry + "\n")
 
 
 
@@ -1212,13 +1217,13 @@ def main(args, event_dict = None):
 
 	if input_gtf is not None:
 		
-		standard_event_dict = splice_lib.generate_standard_event_dict_chrom_strand(input_gtf)
+		standard_event_dict = splice_lib.generate_standard_event_dict(input_gtf)
 
-		splice_lib.complete_event_dict_chrom_strand(standard_event_dict, 
-													args.enable_edge_use, 
-													args.suppress_eij_use, 
-													args.turn_off_no_ends, 
-													args.disable_ri_extrapolation)
+		splice_lib.complete_event_dict(standard_event_dict, 
+										args.enable_edge_use, 
+										args.suppress_eij_use, 
+										args.turn_off_no_ends, 
+										args.disable_ri_extrapolation)
 
 		if bootstraps:
 
@@ -1230,7 +1235,7 @@ def main(args, event_dict = None):
 		standard_event_dict = event_dict
 
 
-	event_type_counts = splice_lib.assess_event_types_chrom_strand(standard_event_dict)
+	event_type_counts = splice_lib.assess_event_types(standard_event_dict)
 
 	#"Events indexed by junction. SE:nnn RI:nnn ..
 
@@ -1266,7 +1271,7 @@ def main(args, event_dict = None):
 		            str(event_type_counts["AB"]))
 
 
-	junction_indexed_event_dict = splice_lib.generate_junction_indexed_event_dict_chrom_strand(standard_event_dict)
+	junction_indexed_event_dict = splice_lib.generate_junction_indexed_event_dict(standard_event_dict)
 
 	junction_only_count_dict = {}
 	#junction_only_count_dict = {key:0 for key in junction_indexed_event_dict}
@@ -1419,8 +1424,8 @@ def main(args, event_dict = None):
 									  junction_indexed_event_dict, 
 									  eij_indexed_event_dict,  
 									  n_reads, 
-									  forward_read, 
 									  all_read_info)
+
 
 			if not args.enable_edge_use:
 				get_exon_edge_counts(junction_only_count_dict_bootstrap, 
