@@ -19,6 +19,7 @@ calc_distance <- function(all_dpsi) {
       event_type,
       comparison, 
       constant_vars) %>%
+    filter(n() > 1) %>%
     mutate(min_mid_dpsi = min(mid_dpsi),
            max_mid_dpsi = max(mid_dpsi),
            min_inner_dpsi = min(inner_dpsi),
@@ -30,6 +31,7 @@ calc_distance <- function(all_dpsi) {
             (inner_dpsi - min_inner_dpsi)/
             (max_inner_dpsi - min_inner_dpsi)) %>%
     summarize(
+      sum_span_dpsi = sum(span_dpsi),
       dist = sum(abs(mid_dpsi)),
       inner_dist = sum(abs(inner_dpsi)),
       signed_dist = abs(sum(mid_dpsi)),
@@ -62,6 +64,8 @@ get_all_ddpsi <- function(
     map(unlist) %>%
     unique()
 
+  print(scndry_comparison_source_list)
+
 
   for (i in scndry_comparison_source_list) {
 
@@ -93,7 +97,7 @@ get_all_ddpsi <- function(
       scndry_comparisons <- identify_comparisons(i)
 
       print(
-        paste0("Secondary comparison levels found ",
+        paste0("Secondary comparison levels not found ",
                "in user-specified levels. Ordering as found."))      
 
       print("Calculating ddPSI")
@@ -296,11 +300,18 @@ get_all_dpsi <- function(
 
       print("Calculating dPSI")
 
+      if (!is.na(constants)) {
+        dpsi <- calc_dpsi(span, 
+                          all_comparisons, 
+                          i, 
+                          constants)
+        } else {
 
-      dpsi <- calc_dpsi(span, 
-                        all_comparisons, 
-                        i, 
-                        constants)
+        dpsi <- calc_dpsi(span, 
+                          all_comparisons, 
+                          i)
+
+        }
 
       dpsi_list <- c(dpsi_list, list(dpsi))
 
@@ -324,44 +335,50 @@ calc_dpsi <- function(events_full_span,
   dpsi_df_list <- list()
 
    for (comparison in comparisons) {
+
+    print("Calculating dPSI for ")
+    print(comparison)
+
+
+    print("Filtering span for condition 1")
+    print(comparisons_factor)
      
      condition_1 <- events_full_span %>% 
 
      filter(
       UQ(as.name(comparisons_factor)) == 
-         comparison[1]) %>%
-
+         comparison[1]) %>% 
      mutate( 
-      cond1_min_psi_lo = min_psi_lo, 
-      cond1_max_psi_hi = max_psi_hi, 
+      cond1_min_min_psi = min_min_psi, 
+      cond1_max_max_psi = max_max_psi, 
       cond1_min_jc = min_jc_condition) %>%
-
      select(
       c(
         "event_id",
         "event_type",
-        "cond1_min_psi_lo",
-        "cond1_max_psi_hi",
+        "cond1_min_min_psi",
+        "cond1_max_max_psi",
         "cond1_min_jc",
         constant_grouping_vars))
 
-     
+    print("Filtering span for condition 2")
+
      condition_2 <- events_full_span %>% 
      filter(
       UQ(as.name(comparisons_factor)) == 
          comparison[2]) %>%
 
      mutate(
-      cond2_min_psi_lo = min_psi_lo, 
-      cond2_max_psi_hi = max_psi_hi, 
+      cond2_min_min_psi = min_min_psi, 
+      cond2_max_max_psi = max_max_psi, 
       cond2_min_jc = min_jc_condition) %>%
 
      select(
       c(
         "event_id",
         "event_type",
-        "cond2_min_PSI_lo",
-        "cond2_max_PSI_hi",
+        "cond2_min_min_psi",
+        "cond2_max_max_psi",
         "cond2_min_jc",
         constant_grouping_vars))
 
@@ -375,9 +392,9 @@ calc_dpsi <- function(events_full_span,
 
              mutate(
                     min_dpsi = 
-              cond2_min_PSI_lo - cond1_max_PSI_hi, 
+              cond2_min_min_psi - cond1_max_max_psi, 
                     max_dpsi = 
-              cond2_max_PSI_hi - cond1_min_PSI_lo, 
+              cond2_max_max_psi - cond1_min_min_psi, 
                     mid_dpsi = 
               (min_dpsi + max_dpsi)/2, 
                     span_dpsi = 
@@ -386,8 +403,10 @@ calc_dpsi <- function(events_full_span,
                       paste0(comparison[1], 
                              "_", 
                              comparison[2]),
-              constant_vars = paste(constant_grouping_vars,
-                                    collapse = ",")) %>% 
+              constant_vars = if_else(length(constant_grouping_vars) > 0, 
+                                      paste(constant_grouping_vars,
+                                            collapse = ","),
+                                      "none")) %>% 
 
              select(c("event_id",
                     "event_type", 
@@ -423,14 +442,24 @@ calc_dpsi <- function(events_full_span,
         rbind, 
         dpsi_df_list)
 
-     dpsi_df <- 
-      dpsi_df %>%
-      mutate(
-        comparison_factor = comparisons_factor) %>%
-      unite(
-        "constants", 
-        constant_grouping_vars, 
-        sep = ",")
+     if(length(constant_grouping_vars) > 0) {
+
+       dpsi_df <- 
+        dpsi_df %>%
+        mutate(
+          comparison_factor = comparisons_factor) %>%
+        unite(
+          "constants", 
+          constant_grouping_vars, 
+          sep = ",") } else {
+
+       dpsi_df <- 
+        dpsi_df %>%
+        mutate(
+          comparison_factor = comparisons_factor,
+          constants = "none")
+
+        }
      
   return(dpsi_df)
    
@@ -463,20 +492,20 @@ calculate_span <- function(
 
     pipeline_message("Finished group_by_at. Starting summarize") %>%
 
-    summarize(lo_na = all(is.na(psi_lo)),
-           hi_na = all(is.na(psi_hi)),
-           min_psi_lo = min(psi_lo),
-           max_psi_hi = max(psi_hi),
+    summarize(min_na = all(is.na(min_psi)),
+           max_na = all(is.na(max_psi)),
+           min_min_psi = min(min_psi),
+           max_max_psi = max(max_psi),
            min_jc_condition = min(min_jc_row),
            min_sum_jc = min(sum_jc)) %>%
 
     pipeline_message("Finished summarize. Starting filter") %>%
 
-    filter(!lo_na & !hi_na) %>%
+    filter(!min_na & !max_na) %>%
 
     pipeline_message("Finished filter. Starting select") %>%
 
-    select(-lo_na, -hi_na) %>%
+    select(-min_na, -max_na) %>%
 
     pipeline_message("Finished select. Starting ungroup") %>%
 
@@ -561,7 +590,9 @@ check_comparisons_constants <- function(
     for (j in names(i)) {
       stopifnot(j %in% sample_info_names)
       for (k in i[j]) {
-        stopifnot(k %in% sample_info_names)
+        if ( !is.na(k)) {
+          stopifnot(k %in% sample_info_names)
+        }
       }
     }
   }
@@ -639,6 +670,8 @@ parse_comparisons <- function(
     for (i in 
          1:length(comparisons)) {
 
+      comparisons_constants[[i]] <- list()
+
       t <- 
         stringr::str_split(
           comparisons[i], 
@@ -656,8 +689,6 @@ parse_comparisons <- function(
           pattern = "-",
           simplify = TRUE) %>%
         as.character()
-
-      comparisons_constants[[i]] <- list()
 
       ## Note that the reason for creating lists 
       ## lists is to allow the same comparison factor(s)
@@ -786,6 +817,17 @@ main <- function() {
   comparisons_constants <- 
     parse_comparisons(args$comparisons)
 
+
+  any_na <- c()
+
+  for (i in comparisons_constants) {
+    for(j in i) {
+      any_na <- c(all(is.na(j)), any_na)
+    }
+  }
+
+  all_na_constants <- all(any_na)
+
   print("Parsing provided levels (if any)")
   level_list <- 
     parse_levels(args$levels)
@@ -820,9 +862,11 @@ main <- function() {
       sep = "\t",
       stringsAsFactors = FALSE,
       header = TRUE) %>% 
-    left_join(sample_info, by = "sample_name") %>% 
-    filter(!grepl("CF|CL", event_id))
+    left_join(sample_info, by = "sample_name")
 
+  for ( i in sample_info_names[2:length(sample_info_names)] ) {
+    all_counts[[i]] <- as.factor(as.character(all_counts[[i]]))
+  }
 
   print("Calculating span and dPSI for all comparisons.  This may take a while . . . ")
 
@@ -848,43 +892,54 @@ main <- function() {
 
   if (args$calc_ddpsi) {
 
-    print("ddPSI calculation indicated. Calculating ddPSI values")
+      if (!all_na_constants) {
 
-    all_ddpsi <- get_all_ddpsi(
-      all_dpsi,
-      level_list)
+        print("ddPSI calculation indicated. Calculating ddPSI values")
 
-    print("Writing ddPSI output")
+        all_ddpsi <- get_all_ddpsi(
+          all_dpsi,
+          level_list)
 
-    all_ddpsi %>%
-      write.table(
-        file = paste0(
-          args$outdir,
-          "/all_ddpsi.tsv"),
-        sep = "\t",
-        quote = FALSE,
-        row.names = FALSE,
-        col.names = TRUE)    
-  }
+        print("Writing ddPSI output")
+
+        all_ddpsi %>%
+          write.table(
+            file = paste0(
+              args$outdir,
+              "/all_ddpsi.tsv"),
+            sep = "\t",
+            quote = FALSE,
+            row.names = FALSE,
+            col.names = TRUE) } else {
+
+            print("Warning: ddPSI calculation indicated but no levels across which it could be calculated. Skipping . . . ")
+          }
+    }
 
   if (args$calc_distance) {
 
-    print("Distance calculation indicated. Calculating distance values.")
+    if(!all_na_constants) {
 
-    distances <- calc_distance(all_dpsi)
+      print("Distance calculation indicated. Calculating distance values.")
 
-    print("Writing distance output")
+      distances <- calc_distance(all_dpsi)
 
-    distances %>%
-      write.table(
-        file = paste0(
-          args$outdir,
-          "/all_distances.tsv"),
-        sep = "\t",
-        quote = FALSE,
-        row.names = FALSE,
-        col.names = TRUE)  
+      print("Writing distance output")
 
+      distances %>%
+        write.table(
+          file = paste0(
+            args$outdir,
+            "/all_distances.tsv"),
+          sep = "\t",
+          quote = FALSE,
+          row.names = FALSE,
+          col.names = TRUE)  
+
+    } else {
+
+        print("Warning: distance calculation indicated but no levels across which it could be calculated. Skipping . . . ")
+      }
   }
 
   print("calc_dpsi.R finished.")
