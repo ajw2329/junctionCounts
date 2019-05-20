@@ -57,6 +57,7 @@ get_all_ddpsi <- function(
 
   scndry_comparison_source_list <-
     all_dpsi_df %>% 
+    filter(constants != "none") %>%
     select(comparison, constants) %>%
     unique() %>%  
     nest(constants) %>%
