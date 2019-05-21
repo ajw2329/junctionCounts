@@ -12,6 +12,8 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 
 library(tidyverse)
+library(purrr)
+library(broom)
 
 ```
 
@@ -96,7 +98,26 @@ rm(condition_2)
 ```
 
 
+```{r}
 
+glm_res <- 
+  all_counts %>% 
+  group_by(event_id) %>%
+  filter(min(min_IJC) > 0 | min(min_SJC) > 0) %>% 
+  nest() %>%
+  mutate(p_val = 
+           map_dbl(
+             data, 
+             ~tidy(
+               anova(
+                 glm(
+                   cbind(min_IJC, min_SJC) ~ condition, 
+                   family = "quasibinomial", 
+                   data = .), test = "F"))[2,]$p.value)) %>% 
+  select(-data) %>%
+  mutate(padj = p.adjust(p_val, method = "BH"))
+
+```
 
 ```{r}
 
@@ -110,7 +131,11 @@ fp_tp <- dpsi_gt_measured %>%
   mutate(fp = sign(mid_dpsi) != 0 & sign(mid_dpsi) != sign(gt_dpsi),
          tp = sign(mid_dpsi) != 0 & sign(mid_dpsi) == sign(gt_dpsi)) %>%
   filter(!is.na(fp), !(!fp & !tp))
+```
 
+
+
+```{r}
 fp_tp %>% filter(abs(inner_dpsi) > 0) %>% group_by(event_type) %>% count()
 
 

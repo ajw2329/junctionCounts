@@ -8,6 +8,7 @@ import time
 import re
 from datetime import datetime
 
+__version__ = "0.1.0"
 
 ####TODO: improve by writing the following functions:
 ########## 1) Select flanking exon
@@ -794,6 +795,10 @@ def separate_jc_friendly_events(
 
                 unfriendly[event] = copy.deepcopy(standard_event_dict[event])
 
+            else:
+
+                friendly[event] = copy.deepcopy(standard_event_dict[event])
+
         else:
 
             if ((len(standard_event_dict[event]["included_junctions"]) == 0 and 
@@ -801,11 +806,12 @@ def separate_jc_friendly_events(
                 (len(standard_event_dict[event]["excluded_junctions"]) == 0 and 
                  len(standard_event_dict[event]["excluded_ei_junctions"]) < 2)):
 
-                unfriendly[event] = copy.deepcopy(standard_event_dict[event])         
+                unfriendly[event] = copy.deepcopy(standard_event_dict[event])  
 
-        else:
+            else:
 
-            friendly[event] = copy.deepcopy(standard_event_dict[event])
+                friendly[event] = copy.deepcopy(standard_event_dict[event])                       
+
 
     return friendly, unfriendly
 
@@ -865,9 +871,13 @@ def main(args, transcript_dict = None):
     parser.add_argument("--bedtools_path", type = str, help = "Path to bedtools executable (default = 'bedtools')", default = "bedtools")
     parser.add_argument("--suppress_output", action = "store_true", help = "If set, GTF, GFF3, and IOE files will not be written.")
     parser.add_argument("--min_AP_AT_dist", type = int, help = "Specifies minimum distance between alternative polyadenylation sites, TSS in order for AP, AT events to be retained. Default is 100", default = 100)
-    parser.add_argument("--dont_restrict_single_eij", action = store_false)
+    parser.add_argument("--dont_restrict_single_eij", action = "store_false")
+    parser.add_argument("--version",
+                        action = "version",
+                        version = "infer_pairwise_events.py is part of junctionCounts version " + __version__)    
 
     args = parser.parse_args(args)
+
 
     transcript_gtf = args.transcript_gtf
     outdir = args.outdir

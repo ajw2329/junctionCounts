@@ -14,6 +14,8 @@ from random import randint
 import pysam
 from collections import defaultdict
 
+__version__ = "0.1.0"
+
 
 def create_eij_ncls_dict(standard_event_dict):
 
@@ -881,20 +883,20 @@ def calc_psi(standard_event_dict,
 									   "event_id", 
 									   "event_type", 
 									   "min_ijc", 
-									   "min_sjc", 
+									   "min_ejc", 
 									   "avg_psi", 
 									   "max_gene_frac", 
 									   "all_ijc", 
-									   "all_sjc",
+									   "all_ejc",
 									   "avg_ijc",
-									   "avg_sjc", 
+									   "avg_ejc", 
 									   "span_psi", 
 									   "min_psi",
 									   "ijc_min_psi",
-									   "sjc_min_psi",
+									   "ejc_min_psi",
 									   "max_psi", 
 									   "ijc_max_psi",
-									   "sjc_max_psi",
+									   "ejc_max_psi",
 									   "mid_psi",
 									   "bootstrap_num"])
 
@@ -928,7 +930,7 @@ def calc_psi(standard_event_dict,
 
 		if min_included + min_excluded > 0:
 
-			psi_min_counts = round(float(min_included)/(float(min_included) + float(min_excluded)), 4)
+			psi_min_counts = float(min_included)/(float(min_included) + float(min_excluded))
 
 			all_psi_values = []
 			all_psi_values_count_pairs = []
@@ -941,23 +943,23 @@ def calc_psi(standard_event_dict,
 					all_psi_values.append(temp_PSI)
 					all_psi_values_count_pairs.append((i,j))
 
-			psi_span = round(max(all_psi_values) - min(all_psi_values), 4)
+			psi_span = max(all_psi_values) - min(all_psi_values)
 
-			psi_avg = round((sum(all_psi_values)/len(all_psi_values)), 4)
+			psi_avg = (sum(all_psi_values)/len(all_psi_values))
 
 			psi_lo_full = min(all_psi_values)
-			psi_lo = round(psi_lo_full, 4)
+			psi_lo = psi_lo_full
 			psi_lo_count_pair = all_psi_values_count_pairs[ all_psi_values.index(psi_lo_full) ]
 			psi_lo_inc_counts = psi_lo_count_pair[0]
 			psi_lo_exc_counts = psi_lo_count_pair[1]
 
 			psi_hi_full = max(all_psi_values)
-			psi_hi = round(psi_hi_full, 4)
+			psi_hi = psi_hi_full
 			psi_hi_count_pair = all_psi_values_count_pairs[ all_psi_values.index(psi_hi_full) ]
 			psi_hi_inc_counts = psi_hi_count_pair[0]
 			psi_hi_exc_counts = psi_hi_count_pair[1]
 
-			psi_mid = round((psi_hi_full + psi_lo_full)/2, 4)
+			psi_mid = (psi_hi_full + psi_lo_full)/2
 
 		else:
 
@@ -993,12 +995,10 @@ def calc_psi(standard_event_dict,
 
 				if gene_max_jn > 0:
 
-					event_max_frac = round(
-											max(
-												(float(min_included)/gene_max_jn), 
-												(float(min_excluded)/gene_max_jn)
-												),
-											4)
+					event_max_frac = max(
+										(float(min_included)/gene_max_jn), 
+										(float(min_excluded)/gene_max_jn)
+										)
 
 				else:
 
@@ -1039,20 +1039,20 @@ def calc_psi(standard_event_dict,
 									  event_entry["event_type"],
 									  str(min_included),
 									  str(min_excluded),
-									  str(psi_avg),
-									  str(event_max_frac),
+									  "%.4f" % psi_avg if psi_avg != "NA" else "NA",
+									  "%.4f" % event_max_frac if event_max_frac != "NA" else "NA",
 									  ",".join(map(str, included_counts)),
 									  ",".join(map(str, excluded_counts)),
-									  str(avg_included),
-									  str(avg_excluded),
-									  str(psi_span),
-									  str(psi_lo),
+									  "%.1f" % avg_included,
+									  "%.1f" % avg_excluded,
+									  "%.4f" % psi_span if psi_span != "NA" else "NA",
+									  "%.4f" % psi_lo if psi_lo != "NA" else "NA",
 									  str(psi_lo_inc_counts),
 									  str(psi_lo_exc_counts),
-									  str(psi_hi),
+									  "%.4f" % psi_hi if psi_hi != "NA" else "NA",
 									  str(psi_hi_inc_counts),
 									  str(psi_hi_exc_counts),
-									  str(psi_mid),
+									  "%.4f" % psi_mid if psi_mid != "NA" else "NA",
 									  str(bootstrap_num)])
 
 			count_psi_outfile.write(output_entry + "\n")
@@ -1155,6 +1155,10 @@ def main(args, event_dict = None):
 						type = int, 
 						help = "Number of bootstraps. default = 0", 
 						default = 0)
+
+	parser.add_argument("--version",
+						action = "version",
+						version = "junctionCounts.py is part of junctionCounts version " + __version__)
 
 	args = parser.parse_args(args)
 

@@ -3,6 +3,8 @@ library("tidyverse")
 library("furrr")
 
 
+version = "0.1.0"
+
 pipeline_message <- function(x, message) {
   print(message)
   return(x)
@@ -216,13 +218,17 @@ calc_ddpsi <- function(
                 )) %>%
 
        mutate(
-        min_jc_comparison = future_pmap_dbl(
+        min_jc_comparison = future_pmap_int(
           list(x = comp1_min_jc_comp, y = comp2_min_jc_comp), 
-          function(x,y) min(x,y), .progress = TRUE), 
+          function(x,y) min(x,y), .progress = TRUE),
+        comp1_min_jc_comp = as.integer(comp1_min_jc_comp),
+        comp2_min_jc_comp = as.integer(comp2_min_jc_comp), 
+        abs_mid_ddpsi = abs(mid_ddpsi),
         inner_ddpsi = future_pmap_dbl(
           list(x = min_ddpsi, y = max_ddpsi), 
           function(x,y) ifelse(sign(x) == sign(y), 
-          sign(x)*min(abs(x), abs(y)), 0), .progress = TRUE))
+          sign(x)*min(abs(x), abs(y)), 0), .progress = TRUE),
+        abs_inner_ddpsi = abs(inner_ddpsi))
 
       ddpsi_df_list <- c(
         ddpsi_df_list, 
@@ -409,7 +415,8 @@ calc_dpsi <- function(events_full_span,
                                             collapse = ","),
                                       "none")) %>% 
 
-             select(c("event_id",
+             select(c(
+                    "event_id",
                     "event_type", 
                     "span_dpsi", 
                     "max_dpsi", 
@@ -423,13 +430,18 @@ calc_dpsi <- function(events_full_span,
                     )) %>%
 
              mutate(
-              min_jc_comparison = future_pmap_dbl(
+              min_jc_comparison = future_pmap_int(
                 list(x = cond1_min_jc, y = cond2_min_jc), 
-                function(x,y) min(x,y), .progress = TRUE), 
+                function(x,y) min(x,y), .progress = TRUE),
+              abs_mid_dpsi = abs(mid_dpsi), 
               inner_dpsi = future_pmap_dbl(
                 list(x = min_dpsi, y = max_dpsi), 
                 function(x,y) ifelse(sign(x) == sign(y), 
-                sign(x)*min(abs(x), abs(y)), 0), .progress = TRUE))
+                sign(x)*min(abs(x), abs(y)), 0), .progress = TRUE),
+              abs_inner_dpsi = abs(inner_dpsi),
+              cond1_min_jc = as.integer(cond1_min_jc),
+              cond2_min_jc = as.integer(cond2_min_jc)
+              )
 
       dpsi_df_list <- c(
         dpsi_df_list, 
@@ -480,9 +492,9 @@ calculate_span <- function(
 
     mutate(
       min_jc_row = future_pmap_dbl(
-        list(x = min_ijc, y = min_sjc), 
+        list(x = min_ijc, y = min_ejc), 
         function(x,y) max(x,y), .progress = TRUE),
-      sum_jc = min_ijc + min_sjc) %>%
+      sum_jc = min_ijc + min_ejc) %>%
 
     pipeline_message("Starting group_by_at in calculate_span") %>%
 
@@ -493,18 +505,15 @@ calculate_span <- function(
 
     pipeline_message("Finished group_by_at. Starting summarize") %>%
 
-    summarize(min_na = all(is.na(min_psi)),
+    summarize(
+           min_na = all(is.na(min_psi)),
            max_na = all(is.na(max_psi)),
            min_min_psi = min(min_psi),
            max_max_psi = max(max_psi),
-           min_jc_condition = min(min_jc_row),
-           min_sum_jc = min(sum_jc)) %>%
+           min_jc_condition = as.integer(min(min_jc_row)),
+           min_sum_jc = as.integer(min(sum_jc))) %>%
 
     pipeline_message("Finished summarize. Starting filter") %>%
-
-    filter(!min_na & !max_na) %>%
-
-    pipeline_message("Finished filter. Starting select") %>%
 
     select(-min_na, -max_na) %>%
 
@@ -527,6 +536,7 @@ calculate_span <- function(
       "constants", 
       grouping_variables, 
       sep = ",") %>%
+    mutate_if(is.double, ~sprintf("%.4f", .x)) %>%
     write.table(
       file = filename,
       sep = "\t",
@@ -797,8 +807,20 @@ call_argparser <- function(
                       "across different fractions."),
         flag = TRUE)
 
+    parser <- parser %>%
+      add_argument(
+        "--version",
+        help = "Print version and exit.",
+        flag = TRUE)
+
 
     args <- parse_args(parser)
+
+    if (args$version) {
+      print(paste0("calc_dpsi.R is part of junctionCounts version ", version))
+
+      quit(save = "no")
+    }
 
     return(args)
 }
@@ -881,7 +903,8 @@ main <- function() {
 
   print("Writing dPSI output")
 
-  all_dpsi %>%
+  all_dpsi %>% 
+    mutate_if(is.double, ~sprintf("%.4f", .x)) %>%
     write.table(
       file = paste0(
         args$outdir,
@@ -904,6 +927,7 @@ main <- function() {
         print("Writing ddPSI output")
 
         all_ddpsi %>%
+          mutate_if(is.double, ~sprintf("%.4f", .x)) %>%
           write.table(
             file = paste0(
               args$outdir,
@@ -928,6 +952,7 @@ main <- function() {
       print("Writing distance output")
 
       distances %>%
+        mutate_if(is.double, ~sprintf("%.4f", .x)) %>%
         write.table(
           file = paste0(
             args$outdir,
