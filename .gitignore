@@ -1,2 +1,5 @@
 *.pyc
 *.tsv
+*.bed
+*.gtf
+*.html
