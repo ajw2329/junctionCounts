@@ -842,8 +842,12 @@ def output_ioe(
 
     for event in standard_event_dict:
 
+        genes = set()
+
         chrom = standard_event_dict[event]["chrom"][:]
-        gene = standard_transcript_dict[standard_event_dict[event]["included_form_transcripts"][0]]["gene"][:]
+        genes = genes.union(set([standard_transcript_dict[transcript]["gene"] for transcript in standard_event_dict[event]["included_form_transcripts"] + standard_event_dict[event]["excluded_form_transcripts"]]))
+
+        gene = ",".join(sorted(genes))
         included_transcripts = copy.deepcopy(standard_event_dict[event]["included_form_transcripts"])
         included_transcripts.sort()
         total_transcripts = copy.deepcopy(standard_event_dict[event]["included_form_transcripts"]) + copy.deepcopy(standard_event_dict[event]["excluded_form_transcripts"])

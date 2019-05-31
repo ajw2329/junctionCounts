@@ -910,13 +910,7 @@ def calc_psi(standard_event_dict,
 							event_entry["included_junction_counts"] ]
 
 
-		try:
-			min_included = min(included_counts)
-		except:
-			print chrom, strand, event
-			print standard_event_dict[chrom][strand][event]
-
-
+		min_included = min(included_counts)
 
 		avg_included = float(sum(included_counts))/float(len(included_counts))
 
