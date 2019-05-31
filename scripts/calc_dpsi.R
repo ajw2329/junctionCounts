@@ -885,7 +885,7 @@ main <- function() {
       sep = "\t",
       stringsAsFactors = FALSE,
       header = TRUE) %>% 
-    left_join(sample_info, by = "sample_name")
+    inner_join(sample_info, by = "sample_name")
 
   for ( i in sample_info_names[2:length(sample_info_names)] ) {
     all_counts[[i]] <- as.factor(as.character(all_counts[[i]]))
