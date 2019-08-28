@@ -829,7 +829,7 @@ def max_jnc_gene_dict(event_ioe,
 						gene_jc_entry.append(junc_val)
 
 	ioe.close()
-	
+
 	return gene_jc_dict
 
 
@@ -978,7 +978,7 @@ def calc_psi(standard_event_dict,
 		else:
 			psi_avg_counts = "NA"
 
-		if gene_jc_dict != None:
+		if gene_jc_dict is not None:
 			if "gene" in event_entry:
 
 				genes_max_jn = []
@@ -1201,7 +1201,7 @@ def main(args, event_dict = None):
 
 	if calc_gene_frac:
 
-		if event_ioe == None:
+		if event_ioe is None:
 
 			sys.exit("--calc_gene_frac set without passing IOE file to " + 
 				     "--event_ioe.  Exiting . . . ")
