@@ -828,6 +828,8 @@ def max_jnc_gene_dict(event_ioe,
 
 						gene_jc_entry.append(junc_val)
 
+	ioe.close()
+	
 	return gene_jc_dict
 
 
