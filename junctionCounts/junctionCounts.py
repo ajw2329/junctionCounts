@@ -198,7 +198,7 @@ def intersection_collapse(input_list):
 
 	'''
 
-	input_set = map(set, input_list)
+	input_set = [set(i) for i in input_list]
 
 	intersections = []
 
@@ -217,27 +217,21 @@ def intersection_collapse(input_list):
 
 					del input_set[i], input_set[j-1]
 
-					intersections.append(list(intersect))
-
+					intersections.append(intersect)
 					break
-					condition = False
+
+
+		if intersections :
+
+			input_set.extend(intersections)
+
+			intersections = []
 
 		else:
+			minimal_list = [list(k) for k in input_set]
 			condition = False
 
-	if len(intersections) > 0:
-
-		input_set.extend(intersections)
-
-		return intersection_collapse(input_set)
-
-	elif len(intersections) == 0:
-
-		#print "No more recursion!"
-		#print input_set
-		minimal_list = map(list, input_set)
-
-		return minimal_list
+	return minimal_list
 
 
 
