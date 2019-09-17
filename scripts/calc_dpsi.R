@@ -49,7 +49,8 @@ calc_distance <- function(all_dpsi) {
 
 get_all_ddpsi <- function(
   all_dpsi_df,
-  level_list) {
+  level_list,
+  sample_info) {
 
   ddpsi_list <- list()
 
@@ -57,15 +58,11 @@ get_all_ddpsi <- function(
 
   print("Making nested source df and unlisting")
 
-  scndry_comparison_source_list <-
-    all_dpsi_df %>% 
-    filter(constants != "none") %>%
-    select(comparison, constants) %>%
-    unique() %>%  
-    nest(constants) %>%
-    pull(data) %>%
-    map(unlist) %>%
-    unique()
+  scndry_comparison_source_list <- list()
+
+  for (i in 2:ncol(sample_info)) {
+    scndry_comparison_source_list[[i-1]] <- unique(as.character(sample_info[,i]))
+  }
 
   print(scndry_comparison_source_list)
 
@@ -922,7 +919,8 @@ main <- function() {
 
         all_ddpsi <- get_all_ddpsi(
           all_dpsi,
-          level_list)
+          level_list,
+          sample_info)
 
         print("Writing ddPSI output")
 
