@@ -12,6 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 
 library(tidyverse)
+library(ggpubr)
 
 ```
 
@@ -42,36 +43,36 @@ all_counts <- read.table("/home/andrew/projects/rnaseq_tools/junctionCounts/benc
                          header = TRUE) %>% 
   left_join(sample_info, by = "sample_name")
 
-sample_01_end_corrected <- read.table("/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/zhang_as_is/sample_01_count_psi_outfile.tsv",
-                                      sep = "\t",
-                                      stringsAsFactors = FALSE,
-                                      header = TRUE)
+#sample_01_end_corrected <- read.table("/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/zhang_as_is/sample_01_count_psi_outfile.tsv",
+#                                      sep = "\t",
+#                                      stringsAsFactors = FALSE,
+#                                      header = TRUE)
 
 
-corr_uncorr_comparison <- gt_psi %>% 
-  left_join(sample_01_end_corrected %>% select(event_id, PSI_lo, PSI_hi), by = "event_id") %>% 
-  mutate(PSI_mid = (PSI_lo + PSI_hi)/2) %>% 
-  select(-PSI_lo, -PSI_hi) %>% 
-  left_join(all_counts %>% 
-              filter(sample_name == "sample_01") %>% 
-              mutate(uncorr_PSI_mid = (PSI_lo + PSI_hi)/2), by = "event_id")
+#corr_uncorr_comparison <- gt_psi %>% 
+#  left_join(sample_01_end_corrected %>% select(event_id, PSI_lo, PSI_hi), by = "event_id") %>% 
+#  mutate(PSI_mid = (PSI_lo + PSI_hi)/2) %>% 
+#  select(-PSI_lo, -PSI_hi) %>% 
+#  left_join(all_counts %>% 
+#              filter(sample_name == "sample_01") %>% 
+#              mutate(uncorr_PSI_mid = (PSI_lo + PSI_hi)/2), by = "event_id")
 
-cor(corr_uncorr_comparison$sample_01, corr_uncorr_comparison$PSI_mid, use = "complete.obs")
-cor(corr_uncorr_comparison$sample_01, corr_uncorr_comparison$uncorr_PSI_mid, use = "complete.obs")
-
-
-se_corr_uncorr_comparison <- corr_uncorr_comparison %>%
-  filter(grepl("SE", event_id))
-
-cor(se_corr_uncorr_comparison$sample_01, se_corr_uncorr_comparison$PSI_mid, use = "complete.obs")
-cor(se_corr_uncorr_comparison$sample_01, se_corr_uncorr_comparison$uncorr_PSI_mid, use = "complete.obs")
+#cor(corr_uncorr_comparison$sample_01, corr_uncorr_comparison$PSI_mid, use = "complete.obs")
+#cor(corr_uncorr_comparison$sample_01, corr_uncorr_comparison$uncorr_PSI_mid, use = "complete.obs")
 
 
-af_corr_uncorr_comparison <- corr_uncorr_comparison %>%
-  filter(grepl("AF", event_id))
+#se_corr_uncorr_comparison <- corr_uncorr_comparison %>%
+#  filter(grepl("SE", event_id))
 
-cor(af_corr_uncorr_comparison$sample_01, af_corr_uncorr_comparison$PSI_mid, use = "complete.obs")
-cor(af_corr_uncorr_comparison$sample_01, af_corr_uncorr_comparison$uncorr_PSI_mid, use = "complete.obs")
+#cor(se_corr_uncorr_comparison$sample_01, se_corr_uncorr_comparison$PSI_mid, use = "complete.obs")
+#cor(se_corr_uncorr_comparison$sample_01, se_corr_uncorr_comparison$uncorr_PSI_mid, use = "complete.obs")
+
+
+#af_corr_uncorr_comparison <- corr_uncorr_comparison %>%
+#  filter(grepl("AF", event_id))
+
+#cor(af_corr_uncorr_comparison$sample_01, af_corr_uncorr_comparison$PSI_mid, use = "complete.obs")
+#cor(af_corr_uncorr_comparison$sample_01, af_corr_uncorr_comparison$uncorr_PSI_mid, use = "complete.obs")
 
 ```
 
@@ -141,28 +142,50 @@ rm(condition_2)
 
 
 events_full_span %>% left_join(gt_mean_psi_long, by = "event_id") %>% 
-  filter(span_psi < 0.3,
-         min_jc_condition >= 15,
-         grepl("MX", event_id)) %>%
+  filter(span_psi <= 0.1,
+         min_jc_condition >= 50,
+         grepl("SE", event_id)) %>%
   ggscatter(x = "mean_gt_psi", 
             y = "mid_psi", 
             add = "reg.line", 
             add.params = list(color = "blue", 
                               fill = "blue"), 
-            conf.int = TRUE) + 
+            conf.int = TRUE,
+            alpha = 0.3) + 
     stat_cor(method = "pearson", 
              label.x = -0.95, 
              label.y = 0.7,  
              aes(label = paste(..rr.label.., ..p.label.., 
                                sep = "~`,`~")))
+```
 
-dpsi_gt_measured <- all_condition_dpsi_df_actual %>% 
+
+```{r}
+events_full_span %>% left_join(gt_mean_psi_long, by = "event_id") %>% 
+  filter(span_psi < 0.3,
+         min_jc_condition >= 100,
+         grepl("SE", event_id)) %>%
+  filter(abs(mean_gt_psi - mid_psi) > 0.8)
+```
+
+```{r}
+
+all_counts %>% 
+filter(event_id == "SE.0000249")
+
+```
+
+```{r}
+dpsi_gt_measured <- 
+  all_condition_dpsi_df_actual %>% 
   left_join(gt_dpsi, by = "event_id") %>%
   separate(event_id, c("event_type"), remove = FALSE, extra = "drop")
 
+```
 
-dpsi_gt_corr_inner_dpsi_0 <- dpsi_gt_measured %>% 
-  filter(min_jc_comparison >= 15,
+```{r}
+(dpsi_gt_corr_inner_dpsi_0 <- dpsi_gt_measured %>% 
+  filter(min_jc_comparison >= 20,
          inner_dpsi != 0) %>% 
   ggscatter(x = "gt_dpsi", 
             y = "mid_dpsi", 
@@ -178,9 +201,9 @@ dpsi_gt_corr_inner_dpsi_0 <- dpsi_gt_measured %>%
              size = 10) + 
     xlab(expr("Ground truth "*Delta*Psi)) + 
     ylab(expr("junctionCounts "*Delta*Psi)) + 
-    ggtitle(expr("Correlation of junctionCounts to simulated data\nwith known ground truth "*Psi),
-            subtitle = expr("Given junctionCounts inner |"*Delta*Psi*"| > 0")) + 
-    theme(text = element_text(size = 22))
+    ggtitle(expr("Correlation of junctionCounts to simulated data with known ground truth "*Psi),
+            subtitle = expr("Given junctionCounts inner |"*Delta*Psi*"| > 0 and "*{phantom()>=phantom()}*" 20 junction reads")) + 
+    theme(text = element_text(size = 22)))
 
 ggsave(plot = dpsi_gt_corr_inner_dpsi_0, filename = "/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/zhang_as_is/dpsi_gt_corr_inner_dpsi_0.pdf", width = 14.5, height = 14.5)
 
@@ -190,20 +213,135 @@ ggsave(plot = dpsi_gt_corr_inner_dpsi_0,
        filename = "/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/zhang_as_is/dpsi_gt_corr_inner_dpsi_0.png", 
        width = 14.5, 
        height = 14.5)
+```
 
-
-dpsi_gt_corr_inner_dpsi_0_event_types <- dpsi_gt_measured %>% 
-  filter(inner_dpsi != 0) %>%
-  ggplot(aes(x = gt_dpsi,
-             y = mid_dpsi)) +
-    geom_point(alpha = 0.5) + 
-    geom_smooth(method = "lm") + 
-    facet_wrap(~event_type,
-               scales = "free") + 
+```{r}
+(dpsi_gt_corr_inner_dpsi_01 <- dpsi_gt_measured %>% 
+  filter(min_jc_comparison >= 20,
+         abs(inner_dpsi) >= 0.1) %>% 
+  ggscatter(x = "gt_dpsi", 
+            y = "mid_dpsi", 
+            add = "reg.line",
+            add.params = list(color = "blue", 
+                             fill = "blue"), 
+            conf.int = TRUE) + 
+    stat_cor(method = "pearson", 
+             label.x = -0.95, 
+             label.y = 0.7,  
+             aes(label = paste(..rr.label.., ..p.label.., 
+                               sep = "~`,`~")),
+             size = 10) + 
     xlab(expr("Ground truth "*Delta*Psi)) + 
     ylab(expr("junctionCounts "*Delta*Psi)) + 
-    theme_bw() + 
-    theme(text = element_text(size = 15))
+    ggtitle(expr("Correlation of junctionCounts to simulated data with known ground truth "*Psi),
+            subtitle = expr("Given junctionCounts inner |"*Delta*Psi*"| ">=" 0.1 and "*{phantom()>=phantom()}*" 20 junction reads")) + 
+    theme(text = element_text(size = 22)))
+
+ggsave(plot = dpsi_gt_corr_inner_dpsi_01, 
+       filename = "/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/zhang_as_is/dpsi_gt_corr_inner_dpsi_01.pdf", 
+       width = 14.5, 
+       height = 14.5)
+
+ggsave(plot = dpsi_gt_corr_inner_dpsi_01, 
+       filename = "/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/zhang_as_is/dpsi_gt_corr_inner_dpsi_01.svg", 
+       width = 14.5, 
+       height = 14.5)
+
+ggsave(plot = dpsi_gt_corr_inner_dpsi_01, 
+       filename = "/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/zhang_as_is/dpsi_gt_corr_inner_dpsi_01.png", 
+       width = 14.5, 
+       height = 14.5)
+```
+
+```{r}
+
+(dpsi_gt_corr_inner_dpsi_no_thresh <- dpsi_gt_measured %>% 
+  ggscatter(x = "gt_dpsi", 
+            y = "mid_dpsi", 
+            add = "reg.line",
+            add.params = list(color = "blue", 
+                             fill = "blue"), 
+            conf.int = TRUE) + 
+    stat_cor(method = "pearson", 
+             label.x = -0.95, 
+             label.y = 0.7,  
+             aes(label = paste(..rr.label.., ..p.label.., 
+                               sep = "~`,`~")),
+             size = 10) + 
+    xlab(expr("Ground truth "*Delta*Psi)) + 
+    ylab(expr("junctionCounts "*Delta*Psi)) + 
+    ggtitle(expr("Correlation of junctionCounts to simulated data with known ground truth "*Psi)) + 
+    theme(text = element_text(size = 22)))
+
+ggsave(plot = dpsi_gt_corr_inner_dpsi_no_thresh, filename = "/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/zhang_as_is/dpsi_gt_corr_inner_dpsi_no_thresh.pdf", width = 14.5, height = 14.5)
+
+ggsave(plot = dpsi_gt_corr_inner_dpsi_no_thresh, filename = "/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/zhang_as_is/dpsi_gt_corr_inner_dpsi_no_thresh.svg", width = 14.5, height = 14.5)
+
+ggsave(plot = dpsi_gt_corr_inner_dpsi_no_thresh, 
+       filename = "/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/zhang_as_is/dpsi_gt_corr_inner_dpsi_no_thresh.png", 
+       width = 14.5, 
+       height = 14.5)
+
+```
+
+```{r}
+(dpsi_gt_corr_inner_dpsi_jc_thresh <- dpsi_gt_measured %>% 
+  filter(min_jc_comparison >= 20) %>% 
+  ggscatter(x = "gt_dpsi", 
+            y = "mid_dpsi", 
+            add = "reg.line",
+            add.params = list(color = "blue", 
+                             fill = "blue"), 
+            conf.int = TRUE) + 
+    stat_cor(method = "pearson", 
+             label.x = -0.95, 
+             label.y = 0.7,  
+             aes(label = paste(..rr.label.., ..p.label.., 
+                               sep = "~`,`~")),
+             size = 10) + 
+    xlab(expr("Ground truth "*Delta*Psi)) + 
+    ylab(expr("junctionCounts "*Delta*Psi)) + 
+    ggtitle(expr("Correlation of junctionCounts to simulated data with known ground truth "*Psi),
+            subtitle = expr("Given "*{phantom()>=phantom()}*" 20 junction reads")) + 
+    theme(text = element_text(size = 22)))
+
+ggsave(plot = dpsi_gt_corr_inner_dpsi_jc_thresh, filename = "/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/zhang_as_is/dpsi_gt_corr_inner_dpsi_jc_thresh.pdf", width = 14.5, height = 14.5)
+
+ggsave(plot = dpsi_gt_corr_inner_dpsi_jc_thresh, filename = "/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/zhang_as_is/dpsi_gt_corr_inner_dpsi_jc_thresh.svg", width = 14.5, height = 14.5)
+
+ggsave(plot = dpsi_gt_corr_inner_dpsi_jc_thresh, 
+       filename = "/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/zhang_as_is/dpsi_gt_corr_inner_dpsi_jc_thresh.png", 
+       width = 14.5, 
+       height = 14.5)
+
+```
+
+
+```{r}
+dpsi_gt_corr_inner_dpsi_0_event_types <- 
+  dpsi_gt_measured %>% 
+  filter(min_jc_comparison >= 20,
+         inner_dpsi != 0) %>% 
+  ggscatter(x = "gt_dpsi", 
+            y = "mid_dpsi", 
+            add = "reg.line",
+            add.params = list(color = "blue", 
+                             fill = "blue"),  
+            conf.int = TRUE,
+            facet.by = "event_type") + 
+    stat_cor(method = "pearson", 
+             label.x = -0.95, 
+             label.y = 0.95,  
+             aes(label = paste(..rr.label.., ..p.label.., 
+                               sep = "~`,`~")),
+             size = 3.5) + 
+    xlab(expr("Ground truth "*Delta*Psi)) + 
+    ylab(expr("junctionCounts "*Delta*Psi)) + 
+    ggtitle(expr("Correlation of junctionCounts to simulated data with known ground truth "*Psi),
+            subtitle = expr("Given junctionCounts inner |"*Delta*Psi*"| > 0 and "*{phantom()>=phantom()}*" 20 junction reads")) + 
+    theme(text = element_text(size = 15),
+          axis.text.y = element_text(size = 12),
+          axis.text.x = element_text(size = 12))
 
 ggsave(plot = dpsi_gt_corr_inner_dpsi_0_event_types, 
        filename = "/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/zhang_as_is/dpsi_gt_corr_inner_dpsi_0_event_types.pdf",
@@ -217,9 +355,133 @@ ggsave(plot = dpsi_gt_corr_inner_dpsi_0_event_types,
        filename = "/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/zhang_as_is/dpsi_gt_corr_inner_dpsi_0_event_types.png",
        width = 10, height = 10)
 
+```
+
+```{r}
+dpsi_gt_corr_inner_dpsi_01_event_types <- 
+  dpsi_gt_measured %>% 
+  filter(min_jc_comparison >= 20,
+         abs(inner_dpsi) >= 0.1) %>% 
+  ggscatter(x = "gt_dpsi", 
+            y = "mid_dpsi", 
+            add = "reg.line",
+            add.params = list(color = "blue", 
+                             fill = "blue"),  
+            conf.int = TRUE,
+            facet.by = "event_type") + 
+    stat_cor(method = "pearson", 
+             label.x = -0.95, 
+             label.y = 0.95,  
+             aes(label = paste(..rr.label.., ..p.label.., 
+                               sep = "~`,`~")),
+             size = 3.5) + 
+    xlab(expr("Ground truth "*Delta*Psi)) + 
+    ylab(expr("junctionCounts "*Delta*Psi)) + 
+    ggtitle(expr("Correlation of junctionCounts to simulated data with known ground truth "*Psi),
+            subtitle = expr("Given junctionCounts inner |"*Delta*Psi*"| ">=" 0.1 and "*{phantom()>=phantom()}*" 20 junction reads")) + 
+    theme(text = element_text(size = 15),
+          axis.text.y = element_text(size = 12),
+          axis.text.x = element_text(size = 12))
+
+ggsave(plot = dpsi_gt_corr_inner_dpsi_01_event_types, 
+       filename = "/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/zhang_as_is/dpsi_gt_corr_inner_dpsi_01_event_types.pdf",
+       width = 10, height = 10)
+
+ggsave(plot = dpsi_gt_corr_inner_dpsi_01_event_types, 
+       filename = "/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/zhang_as_is/dpsi_gt_corr_inner_dpsi_01_event_types.svg",
+       width = 10, height = 10)
+
+ggsave(plot = dpsi_gt_corr_inner_dpsi_01_event_types, 
+       filename = "/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/zhang_as_is/dpsi_gt_corr_inner_dpsi_01_event_types.png",
+       width = 10, height = 10)
+
+```
+
+
+
+```{r}
+dpsi_gt_corr_inner_dpsi_jc_thresh_event_types <- 
+  dpsi_gt_measured %>% 
+  filter(min_jc_comparison >= 20) %>% 
+  ggscatter(x = "gt_dpsi", 
+            y = "mid_dpsi", 
+            add = "reg.line",
+            add.params = list(color = "blue", 
+                             fill = "blue"),  
+            conf.int = TRUE,
+            facet.by = "event_type") + 
+    stat_cor(method = "pearson", 
+             label.x = -0.95, 
+             label.y = 0.95,  
+             aes(label = paste(..rr.label.., ..p.label.., 
+                               sep = "~`,`~")),
+             size = 4) + 
+    xlab(expr("Ground truth "*Delta*Psi)) + 
+    ylab(expr("junctionCounts "*Delta*Psi)) + 
+    ggtitle(expr("Correlation of junctionCounts to simulated data with known ground truth "*Psi),
+            subtitle = expr({phantom()>=phantom()}*" 20 junction reads")) + 
+    theme(text = element_text(size = 15),
+          axis.text.y = element_text(size = 12),
+          axis.text.x = element_text(size = 12))
+
+ggsave(plot = dpsi_gt_corr_inner_dpsi_jc_thresh_event_types, 
+       filename = "/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/zhang_as_is/dpsi_gt_corr_inner_dpsi_jc_thresh_event_types.pdf",
+       width = 10, height = 10)
+
+ggsave(plot = dpsi_gt_corr_inner_dpsi_jc_thresh_event_types, 
+       filename = "/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/zhang_as_is/dpsi_gt_corr_inner_dpsi_jc_thresh_event_types.svg",
+       width = 10, height = 10)
+
+ggsave(plot = dpsi_gt_corr_inner_dpsi_jc_thresh_event_types, 
+       filename = "/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/zhang_as_is/dpsi_gt_corr_inner_dpsi_jc_thresh_event_types.png",
+       width = 10, height = 10)
+
+```
+
+```{r}
+dpsi_gt_corr_inner_dpsi_no_thresh_event_types <- 
+  dpsi_gt_measured %>% 
+  ggscatter(x = "gt_dpsi", 
+            y = "mid_dpsi", 
+            add = "reg.line",
+            add.params = list(color = "blue", 
+                             fill = "blue"),  
+            conf.int = TRUE,
+            facet.by = "event_type") + 
+    stat_cor(method = "pearson", 
+             label.x = -0.95, 
+             label.y = 0.95,  
+             aes(label = paste(..rr.label.., ..p.label.., 
+                               sep = "~`,`~")),
+             size = 3.5) + 
+    xlab(expr("Ground truth "*Delta*Psi)) + 
+    ylab(expr("junctionCounts "*Delta*Psi)) + 
+    ggtitle(expr("Correlation of junctionCounts to simulated data with known ground truth "*Psi)) + 
+    theme(text = element_text(size = 15),
+          axis.text.y = element_text(size = 12),
+          axis.text.x = element_text(size = 12))
+
+ggsave(plot = dpsi_gt_corr_inner_dpsi_no_thresh_event_types, 
+       filename = "/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/zhang_as_is/dpsi_gt_corr_inner_dpsi_no_thresh_event_types.pdf",
+       width = 10, height = 10)
+
+ggsave(plot = dpsi_gt_corr_inner_dpsi_no_thresh_event_types, 
+       filename = "/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/zhang_as_is/dpsi_gt_corr_inner_dpsi_no_thresh_event_types.svg",
+       width = 10, height = 10)
+
+ggsave(plot = dpsi_gt_corr_inner_dpsi_no_thresh_event_types, 
+       filename = "/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/zhang_as_is/dpsi_gt_corr_inner_dpsi_no_thresh_event_types.png",
+       width = 10, height = 10)
+
+```
+
+
+
+```{r}
 
 dpsi_gt_corr_inner_dpsi_0_event_types_r2 <- dpsi_gt_measured %>% 
-  filter(inner_dpsi != 0) %>%
+  filter(inner_dpsi != 0,
+         min_jc_comparison >= 20) %>%
   group_by(event_type) %>%
   summarize(R2 = round(cor(mid_dpsi, gt_dpsi, use = "complete.obs")^2, 3)) %>%
   rename(`Event Type` = event_type) %>%
@@ -240,8 +502,13 @@ ggsave(plot = dpsi_gt_corr_inner_dpsi_0_event_types_r2,
        filename = "/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/zhang_as_is/dpsi_gt_corr_inner_dpsi_0_event_types_r2.png",
        width = 10, height = 10)
 
+```
 
-dpsi_gt_corr_event_types_r2 <- dpsi_gt_measured %>% 
+```{r}
+
+dpsi_gt_corr_inner_dpsi_01_event_types_r2 <- dpsi_gt_measured %>% 
+  filter(abs(inner_dpsi) >= 0.1,
+         min_jc_comparison >= 20) %>%
   group_by(event_type) %>%
   summarize(R2 = round(cor(mid_dpsi, gt_dpsi, use = "complete.obs")^2, 3)) %>%
   rename(`Event Type` = event_type) %>%
@@ -250,50 +517,360 @@ dpsi_gt_corr_event_types_r2 <- dpsi_gt_measured %>%
               cols = c("Event Type", "R^2"))
 
 
+ggsave(plot = dpsi_gt_corr_inner_dpsi_01_event_types_r2, 
+       filename = "/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/zhang_as_is/dpsi_gt_corr_inner_dpsi_01_event_types_r2.pdf",
+       width = 3, height = 10)
 
+ggsave(plot = dpsi_gt_corr_inner_dpsi_01_event_types_r2, 
+       filename = "/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/zhang_as_is/dpsi_gt_corr_inner_dpsi_01_event_types_r2.svg",
+       width = 10, height = 10)
+
+ggsave(plot = dpsi_gt_corr_inner_dpsi_01_event_types_r2, 
+       filename = "/home/andrew/projects/rnaseq_tools/junctionCounts/benchmarks/simulations/zhang_as_is/dpsi_gt_corr_inner_dpsi_01_event_types_r2.png",
+       width = 10, height = 10)
+
+```
+
+```{r}
+dpsi_gt_corr_event_types_r2 <- 
+  dpsi_gt_measured %>% 
+  group_by(event_type) %>%
+  summarize(R2 = round(cor(mid_dpsi, gt_dpsi, use = "complete.obs")^2, 3)) %>%
+  rename(`Event Type` = event_type) %>%
+  arrange(-R2) %>%
+  ggtexttable(rows = NULL,
+              cols = c("Event Type", "R^2"))
+
+```
+
+
+```{r}
 fp_tp <- dpsi_gt_measured %>%
   mutate(fp = sign(mid_dpsi) != 0 & sign(mid_dpsi) != sign(gt_dpsi),
          tp = sign(mid_dpsi) != 0 & sign(mid_dpsi) == sign(gt_dpsi)) %>%
   filter(!is.na(fp), !(!fp & !tp))
 
-fp_tp %>% filter(abs(inner_dpsi) > 0) %>% group_by(event_type) %>% count()
+
+```
 
 
-thresholds <- data.frame(mid_dpsi_thresh = seq(0,1,0.025), 
-                         min_jc_comparison_thresh = seq(1,41,1), 
-                         dpsi_span_thresh = seq(0,2,0.05))
+
+```{r}
+
+thresholds_a <- data.frame(abs_mid_dpsi_thresh = seq(0,0.3,0.01), 
+                         min_jc_comparison_thresh = c(1,1,1,1,
+                                                      5,5,5,5,
+                                                      10,10,10,10,
+                                                      15,15,15,15,
+                                                      20,20,20,20,
+                                                      25,25,25,25,
+                                                      30,30,30,30,
+                                                      35,35,35))
+
+thresholds_b <- data.frame(abs_mid_dpsi_thresh = seq(0,0.3,0.01), 
+                           span_dpsi_thresh = seq(0,2,length.out = 31))
+
+thresholds_c <- data.frame(abs_inner_dpsi_thresh = seq(0,0.3,0.01), 
+                           min_jc_comparison_thresh = c(1,1,1,1,
+                                                      5,5,5,5,
+                                                      10,10,10,10,
+                                                      15,15,15,15,
+                                                      20,20,20,20,
+                                                      25,25,25,25,
+                                                      30,30,30,30,
+                                                      35,35,35))
+
+thresholds_a_full <- 
+  thresholds_a %>% 
+  expand(abs_mid_dpsi_thresh, 
+         min_jc_comparison_thresh)
+
+thresholds_b_full <- 
+  thresholds_b %>% 
+  expand(abs_mid_dpsi_thresh, 
+         span_dpsi_thresh)
+
+thresholds_c_full <- 
+  thresholds_c %>% 
+  expand(abs_inner_dpsi_thresh, 
+         min_jc_comparison_thresh)
+
+
+fp_rate_a <- apply(thresholds_a_full, 1, function(x, df) df %>% 
+                                      filter(abs(mid_dpsi) >= x[1], 
+                                             min_jc_comparison >= x[2]) %>%
+                                      summarize(fp_rate = mean(fp),
+                                              r_2 = cor(mid_dpsi, 
+                                                       gt_dpsi,
+                                                       method = "pearson")^2,
+                                              n = n()), 
+                    df = fp_tp)
+
+fp_rate_b <- apply(thresholds_b_full, 1, function(x, df) df %>% 
+                                      filter(abs(mid_dpsi) >= x[1], 
+                                             span_dpsi >= x[2]) %>%
+                                    summarize(fp_rate = mean(fp),
+                                              r_2 = cor(mid_dpsi, 
+                                                       gt_dpsi,
+                                                       method = "pearson")^2,
+                                              n = n()), 
+                   df = fp_tp)
+
+fp_rate_c <- apply(thresholds_c_full, 1, function(x, df) df %>% 
+                                      filter(abs(inner_dpsi) >= x[1], 
+                                             min_jc_comparison >= x[2]) %>%
+                                    summarize(fp_rate = mean(fp),
+                                              r_2 = cor(mid_dpsi, 
+                                                       gt_dpsi,
+                                                       method = "pearson")^2,
+                                              n = n()), 
+                    df = fp_tp)
+
+
+thresholds_fp_rate_a <- cbind(thresholds_a_full, do.call(rbind, fp_rate_a))
+
+thresholds_fp_rate_b <- cbind(thresholds_b_full, do.call(rbind, fp_rate_b))
+
+thresholds_fp_rate_c <- cbind(thresholds_c_full, do.call(rbind, fp_rate_c))
+```
+
+
+```{r}
+thresholds_fp_rate_a %>%
+ggplot(aes(x = abs_mid_dpsi_thresh,
+           y = fp_rate,
+           col = factor(min_jc_comparison_thresh),
+           fill = factor(min_jc_comparison_thresh))) + 
+    geom_point() + 
+    geom_smooth() + 
+    theme_bw() + 
+    xlab(expr("min |"*Delta*Psi[mid]*"|")) +
+    ylab("FDR")
+```
+
+```{r}
+thresholds_fp_rate_a %>%
+ggplot(aes(x = abs_mid_dpsi_thresh,
+           y = r_2,
+           col = factor(min_jc_comparison_thresh),
+           fill = factor(min_jc_comparison_thresh))) + 
+    geom_point() + 
+    geom_smooth() + 
+    theme_bw() + 
+    xlab(expr("min |"*Delta*Psi[inner]*"|")) +
+    ylab(expr("R"^{2}))
+```
+
+```{r}
+
+thresholds_fp_rate_a %>%
+ggplot(aes(x = abs_mid_dpsi_thresh,
+           y = n,
+           col = factor(min_jc_comparison_thresh),
+           fill = factor(min_jc_comparison_thresh))) + 
+    geom_point() + 
+    geom_smooth() + 
+    theme_bw() + 
+    xlab(expr("min |"*Delta*Psi[inner]*"|")) +
+    ylab(expr("R"^{2}))
+
+```
+
+```{r}
+
+thresholds_fp_rate_b %>%
+ggplot(aes(x = abs_mid_dpsi_thresh,
+           y = fp_rate,
+           col = span_dpsi_thresh)) + 
+    geom_point() + 
+    theme_bw()
+
+```
+
+```{r}
+
+thresholds_fp_rate_c %>%
+ggplot(aes(x = abs_inner_dpsi_thresh,
+           y = fp_rate,
+           col = factor(min_jc_comparison_thresh),
+           fill = factor(min_jc_comparison_thresh))) + 
+    geom_point() + 
+    geom_smooth() + 
+    theme_bw() + 
+    xlab(expr("min |"*Delta*Psi[inner]*"|")) +
+    ylab("FDR")
+```
+
+```{r}
+
+
+thresholds_fp_rate_c %>%
+ggplot(aes(x = abs_inner_dpsi_thresh,
+           y = r_2,
+           col = factor(min_jc_comparison_thresh),
+           fill = factor(min_jc_comparison_thresh))) + 
+    geom_point() + 
+    #geom_smooth() + 
+    theme_bw() + 
+    xlab(expr("min |"*Delta*Psi[inner]*"|")) +
+    ylab(expr("R"^{2}))
+```
+
+```
+
+```{r}
+thresholds_fp_rate_c %>%
+ggplot(aes(x = abs_inner_dpsi_thresh,
+           y = fp_rate,
+           col = factor(min_jc_comparison_thresh))) + 
+    geom_point() + 
+    theme_bw()
+
+```
+
+
+
+
+```{r}
+thresholds <- data.frame(mid_dpsi_thresh = seq(0,0.3,0.01), 
+                         min_jc_comparison_thresh = c(1,1,1,1,
+                                                      5,5,5,5,
+                                                      10,10,10,10,
+                                                      15,15,15,15,
+                                                      20,20,20,20,
+                                                      25,25,25,25,
+                                                      30,30,30,30,
+                                                      35,35,35))
+
+thresholds_beta <- data.frame(abs_inner_dpsi_thresh = seq(0,0.3,0.01), 
+                              span_dpsi_thresh = seq(0,2,length.out = 31))
+
+thresholds_gamma <- data.frame(abs_inner_dpsi_thresh = seq(0,0.3,0.01), 
+                               min_jc_comparison_thresh = c(1,1,1,1,
+                                                      5,5,5,5,
+                                                      10,10,10,10,
+                                                      15,15,15,15,
+                                                      20,20,20,20,
+                                                      25,25,25,25,
+                                                      30,30,30,30,
+                                                      35,35,35))
 
 thresholds_full <- thresholds %>% 
   expand(mid_dpsi_thresh, 
-         min_jc_comparison_thresh,
-         dpsi_span_thresh)
+         min_jc_comparison_thresh)
+
+thresholds_beta_full <- thresholds_beta %>% 
+  expand(abs_inner_dpsi_thresh, 
+         span_dpsi_thresh)
+
+thresholds_gamma_full <- thresholds_gamma %>% 
+  expand(abs_inner_dpsi_thresh, 
+         min_jc_comparison_thresh)
 
 event_type_fp_rate_threshold_list = list()
 
+event_type_fp_rate_threshold_beta_list = list()
+
+event_type_fp_rate_threshold_gamma_list = list()
+
 for (i in unique(all_counts$event_type)) {
   fp_tp_et = fp_tp %>% filter(event_type == i)
-  fp_rate <- apply(thresholds_full, 1, function(x, df) df %>% 
-          filter(abs(mid_dpsi) >= x[1], min_jc_comparison >= x[2], span_dpsi <= x[3]) %>%
-          summarize(fp_rate = mean(fp)) %>% pull(fp_rate), df = fp_tp_et)
-  thresholds_fp_rate <- cbind(thresholds_full, data.frame(event_type = i, fp_rate = fp_rate))
-  event_type_fp_rate_threshold_list = c(event_type_fp_rate_threshold_list, list(thresholds_fp_rate))
+  fp_rate_cor <- apply(thresholds_full, 
+                   1, 
+                   function(x, df) df %>% 
+                   filter(abs(mid_dpsi) >= x[1], 
+                          min_jc_comparison >= x[2]) %>%
+                   summarize(fp_rate = mean(fp),
+                             r_2 = cor(mid_dpsi, 
+                                       gt_dpsi,
+                                       method = "pearson")^2), df = fp_tp_et)
+  
+  thresholds_fp_rate <- cbind(thresholds_full, 
+                              data.frame(event_type = i, 
+                                         fp_rate = map_dbl(fp_rate_cor, ~.[[1]]),
+                                         r_2 = map_dbl(fp_rate_cor, ~.[[2]])))
+  
+  event_type_fp_rate_threshold_list = c(event_type_fp_rate_threshold_list, 
+                                        list(thresholds_fp_rate))
+}
+
+for (i in unique(all_counts$event_type)) {
+  fp_tp_et = fp_tp %>% filter(event_type == i)
+  fp_rate_cor <- apply(thresholds_beta_full, 
+                   1, 
+                   function(x, df) df %>% 
+                   filter(abs(inner_dpsi) >= x[1], 
+                          span_dpsi >= x[2]) %>%
+                   summarize(fp_rate = mean(fp),
+                             r_2 = cor(mid_dpsi, 
+                                       gt_dpsi,
+                                       method = "pearson")^2), df = fp_tp_et)
+  
+  thresholds_fp_rate <- cbind(thresholds_beta_full, 
+                              data.frame(event_type = i,
+                                         fp_rate = map_dbl(fp_rate_cor, ~.[[1]]),
+                                         r_2 = map_dbl(fp_rate_cor, ~.[[2]])))
+  
+  event_type_fp_rate_threshold_beta_list = c(event_type_fp_rate_threshold_beta_list, 
+                                             list(thresholds_fp_rate))
+}
+
+for (i in unique(all_counts$event_type)) {
+  fp_tp_et = fp_tp %>% filter(event_type == i)
+  fp_rate_cor <- apply(thresholds_gamma_full, 
+                   1, 
+                   function(x, df) df %>% 
+                   filter(abs(inner_dpsi) >= x[1], 
+                          min_jc_comparison >= x[2]) %>%
+                   summarize(fp_rate = mean(fp),
+                             r_2 = cor(mid_dpsi,
+                                       gt_dpsi,
+                                       method = "pearson")^2), df = fp_tp_et)
+  
+  thresholds_fp_rate <- cbind(thresholds_gamma_full, 
+                              data.frame(event_type = i,
+                                         fp_rate = map_dbl(fp_rate_cor, ~.[[1]]),
+                                         r_2 = map_dbl(fp_rate_cor, ~.[[2]])))
+  
+  event_type_fp_rate_threshold_gamma_list = c(event_type_fp_rate_threshold_gamma_list, 
+                                              list(thresholds_fp_rate))
 }
 
 event_type_thresholds_fp_rate <- do.call(rbind, event_type_fp_rate_threshold_list)
 
-thresholds_fp_rate %>% group_by(dpsi_span_thresh) %>% summarize(fp_rate_mean = mean(fp_rate, na.rm = TRUE)) %>% ggplot(aes(x = dpsi_span_thresh, y = fp_rate_mean)) + geom_point()
+event_type_thresholds_beta_fp_rate <- do.call(rbind, event_type_fp_rate_threshold_beta_list)
 
+event_type_thresholds_gamma_fp_rate <- do.call(rbind, event_type_fp_rate_threshold_gamma_list)
 
-thresholds_fp_rate %>% group_by(min_jc_comparison_thresh) %>% summarize(fp_rate_mean = mean(fp_rate, na.rm = TRUE)) %>% ggplot(aes(x = min_jc_comparison_thresh, y = fp_rate_mean)) + geom_point()
-
-thresholds_fp_rate %>% group_by(mid_dpsi_thresh) %>% summarize(fp_rate_mean = mean(fp_rate, na.rm = TRUE)) %>% ggplot(aes(x = mid_dpsi_thresh, y = fp_rate_mean)) + geom_point()
-
-thresholds_fp_rate %>% filter(mid_dpsi_thresh > 0) %>% select(-dpsi_span_thresh) %>% group_by(mid_dpsi_thresh, min_jc_comparison_thresh) %>% summarize(mean_fp_rate = mean(fp_rate, na.rm = TRUE)) %>% ungroup() %>% ggplot(aes(x = min_jc_comparison_thresh, y = mid_dpsi_thresh, fill = mean_fp_rate, col = mean_fp_rate <= 0.05)) + geom_tile() + scale_fill_viridis_c()
-
-event_type_thresholds_fp_rate %>% filter(mid_dpsi_thresh > 0) %>% group_by(mid_dpsi_thresh, dpsi_span_thresh, event_type) %>% summarize(mean_fp_rate = mean(fp_rate, na.rm = TRUE)) %>% ungroup() %>% ggplot(aes(x = dpsi_span_thresh, y = mid_dpsi_thresh, fill = mean_fp_rate, col = mean_fp_rate <= 0.05)) + geom_tile() + scale_fill_viridis_c() + theme_minimal() + facet_wrap(~event_type)
 ```
 
 
+
+```{r}
+
+event_type_thresholds_fp_rate %>%
+ggplot(aes(x = mid_dpsi_thresh,
+           y = fp_rate,
+           col = factor(min_jc_comparison_thresh))) + 
+    geom_point() + 
+    theme_bw() + 
+    facet_wrap(~event_type) + 
+    geom_hline(yintercept = 0.05)
+
+```
+
+```{r}
+
+event_type_thresholds_beta_fp_rate %>%
+ggplot(aes(x = abs_inner_dpsi_thresh,
+           y = fp_rate,
+           col = span_dpsi_thresh)) + 
+    geom_point() + 
+    theme_bw() + 
+    facet_wrap(~event_type) + 
+    geom_hline(yintercept = 0.05)
+
+```
 
 
 

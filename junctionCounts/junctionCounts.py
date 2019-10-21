@@ -257,7 +257,7 @@ def process_reads(bam_filename,
 
 	if forward_read == "R1":
 
-		first_strand = ["-", "+"]
+		strand_list = ["-", "+"]
 		stranded_unstranded_fn = assign_reads_stranded
 
 	elif forward_read == "R2":
