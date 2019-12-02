@@ -570,7 +570,11 @@ def classify_event(pre_common, post_common, tx1_unique, tx2_unique, form_1_exons
 
 
 
-def write_intron_bedfile(standard_junction_indexed_transcript_dict, outdir):
+def write_intron_bedfile(
+        standard_junction_indexed_transcript_dict, 
+        outdir,
+        min_intron_length,
+        max_intron_length):
     '''
         input: junction-indexed transcript dict (dict that has all junctions (which allows definition of introns); values are transcripts to which they belong)
         output: writes a bed file containing intron coordinates to the output directory
@@ -594,7 +598,7 @@ def write_intron_bedfile(standard_junction_indexed_transcript_dict, outdir):
         intron_start = str(int(junction.split("_")[1]) - 1) ####added - 1
         intron_end = str(int(junction.split("_")[2])) ###removed - 1
 
-        if (int(intron_end) - int(intron_start)) > 19:
+        if max_intron_length >= (int(intron_end) - int(intron_start)) >= min_intron_length:
 
             intron_bedfile.write("\t".join([chrom, intron_start, intron_end, junction + "|" + putative_excluded_form_transcripts, "1000", strand]) + "\n")
         else:
@@ -945,7 +949,11 @@ def main(args, transcript_dict = None):
 
     print "{0}: {1} seconds elapsed. Created standard event dict.  Now searching for RI events that may lack common nodes.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
 
-    write_intron_bedfile(standard_junction_indexed_transcript_dict, outdir)
+    write_intron_bedfile(
+        standard_junction_indexed_transcript_dict, 
+        outdir,
+        args.min_intron_length,
+        args.max_intron_length)
 
     write_exon_bedfile(standard_transcript_dict, outdir)
 

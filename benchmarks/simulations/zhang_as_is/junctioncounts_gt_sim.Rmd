@@ -716,7 +716,7 @@ ggplot(aes(x = abs_inner_dpsi_thresh,
     ylab(expr("R"^{2}))
 ```
 
-```
+
 
 ```{r}
 thresholds_fp_rate_c %>%
