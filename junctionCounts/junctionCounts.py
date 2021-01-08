@@ -77,7 +77,7 @@ def create_eij_ncls_dict(standard_event_dict):
 
 def read_pair_generator(bam):
 	"""
-    Slight modification of function written by biostars user gizone1: https://www.biostars.org/p/306041/
+    	Slight modification of function written by biostars user gizone1: https://www.biostars.org/p/306041/
 	Generate read pairs in a BAM file or within a region string.
 	Reads are added to read_dict until a pair is found.
 	"""
@@ -334,25 +334,26 @@ def process_reads(bam_filename,
 	else:
 
 		for read1, read2 in read_pair_generator(bam):
+			
+			if read1 is not None and read2 is not None:
 
-			read_properties = parse_reads([read1, read2], 
-										  strand_list)
+				read_properties = parse_reads([read1, read2], strand_list)
 
-			if not read_properties:
-				continue
+				if not read_properties:
+					continue
 
-			read_info = assign_reads(read_properties, 
-				 junction_indexed_event_dict, 
-				 junction_only_count_dict, 
-				 standard_event_dict, 
-				 ncls_by_chrom_strand,
-				 eij_indexed_event_dict, 
-				 eij_only_count_dict,
-				 stranded_unstranded_fn = stranded_unstranded_fn, 
-				 bootstrap_function = bootstrap_function)
+				read_info = assign_reads(read_properties, 
+					 junction_indexed_event_dict, 
+					 junction_only_count_dict, 
+					 standard_event_dict, 
+					 ncls_by_chrom_strand,
+					 eij_indexed_event_dict, 
+					 eij_only_count_dict,
+					 stranded_unstranded_fn = stranded_unstranded_fn, 
+					 bootstrap_function = bootstrap_function)
 
-			all_read_info[list_index_counter] = read_info
-			list_index_counter += 1
+				all_read_info[list_index_counter] = read_info
+				list_index_counter += 1
 
 
 	bam.close()
