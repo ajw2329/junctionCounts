@@ -176,7 +176,7 @@ python2.7 /path/to/junctionCounts.py --event_gtf /path/to/splice_lib_events.gtf 
 
 `h9esc_cyto_jd004_count_psi_outfile.tsv`
 
-| sample_name      | event_id   | event_type | min_ijc | min_sjc | avg_psi | max_gene_frac | all_ijc     | all_sjc   | avg_ijc       | avg_sjc | span_psi | min_psi | ijc_min_psi | sjc_min_psi | max_psi | ijc_max_psi | sjc_max_psi | mid_psi | bootstrap_num |
+| sample_name      | event_id   | event_type | min_ijc | min_ejc | avg_psi | max_gene_frac | all_ijc     | all_ejc   | avg_ijc       | avg_ejc | span_psi | min_psi | ijc_min_psi | ejc_min_psi | max_psi | ijc_max_psi | ejc_max_psi | mid_psi | bootstrap_num |
 |------------------|------------|------------|---------|---------|---------|---------------|-------------|-----------|---------------|---------|----------|---------|-------------|-------------|---------|-------------|-------------|---------|---------------|
 | h9esc_cyto_jd004 | RI.0024780 | RI         | 2       | 0       | 1.0     | 0.08          | 25,2        | 0         | 13.5          | 0.0     | 0.0      | 1.0     | 25          | 0           | 1.0     | 25          | 0           | 1.0     | NA            |
 | h9esc_cyto_jd004 | RI.0022510 | RI         | 5       | 0       | 1.0     | 0.2           | 5,5         | 0         | 5.0           | 0.0     | 0.0      | 1.0     | 5           | 0           | 1.0     | 5           | 0           | 1.0     | NA            |
@@ -195,20 +195,20 @@ python2.7 /path/to/junctionCounts.py --event_gtf /path/to/splice_lib_events.gtf 
 `event_id` : unique name for event  
 `event_type` : type of event as discussed above  
 `min_ijc` : (integer) minimum read count of all junctions in the included form  
-`min_sjc` : (integer) minimum read count of all junctions in the excluded (skipped) form  
+`min_ejc` : (integer) minimum read count of all junctions in the excluded (skipped) form  
 `avg_psi` : (float) average of all PSI values computed all pairs of included, excluded junction counts  
 `max_gene_frac` : (float) `max(min_ijc, min_sjc)/max_gene_jc` where `max_gene_jc` is the maximum junction count for any junction in the event's gene. Only computed if `--calc_gene_frac` is passed along with an ioe file  
 `all_ijc` : (comma-sep list of integers) list of junction counts for all included form junctions  
-`all_sjc` : (comma-sep list of integers) list of junction counts for all excluded form junctions  
+`all_ejc` : (comma-sep list of integers) list of junction counts for all excluded form junctions  
 `avg_ijc` : (float) mean junction count for included form junctions  
-`avg_sjc` : (float) mean junction count for excluded form junctions  
+`avg_ejc` : (float) mean junction count for excluded form junctions  
 `span_psi` : (float) `max_psi - min_psi`, i.e. the difference between the largest and smallest PSI values computed using any pair of included, excluded form junction counts. Large spans may indicate unreliability of the PSI estimate for a number of reasons such as partial junction overlap with another event combined with an abundance of multiply counted reads.  
 `min_psi` : (float) minimum of all PSI values computed all pairs of included, excluded junction counts  
 `ijc_min_psi` : (float) included form junction count corresponding to the `min_psi` calculation  
-`sjc_min_psi` : (float) excluded form junction count corresponding to the `min_psi` calculation  
+`ejc_min_psi` : (float) excluded form junction count corresponding to the `min_psi` calculation  
 `max_psi` : (float) maximum of all PSI values computed all pairs of included, excluded junction counts  
 `ijc_max_psi` : (float) included form junction count corresponding to the `max_psi` calculation  
-`sjc_max_psi` : (float) excluded form junction count corresponding to the `max_psi` calculation  
+`ejc_max_psi` : (float) excluded form junction count corresponding to the `max_psi` calculation  
 `mid_psi` : (float) midpoint between `min_psi` and `max_psi`  
 
 
