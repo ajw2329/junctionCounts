@@ -606,6 +606,7 @@ def assign_reads_unstranded(
 			#junction_only_count_dict[chrom][strand][junction] += 1
 
 			append_matching(
+				candidate_isoforms,
 				matching_events, 
 				event_junction_dict, 
 				junction)
@@ -637,6 +638,7 @@ def assign_reads_unstranded(
 			matching_events = list(matching_events_set)
 
 			append_matching(
+				candidate_isoforms,
 				matching_events, 
 				event_eij_dict, 
 				eij)
