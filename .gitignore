@@ -3,3 +3,4 @@
 *.bed
 *.gtf
 *.html
+build/
