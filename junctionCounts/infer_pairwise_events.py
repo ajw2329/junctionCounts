@@ -8,7 +8,7 @@ import time
 import re
 from datetime import datetime
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 ####TODO: improve by writing the following functions:
 ########## 1) Select flanking exon
