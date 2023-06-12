@@ -14,7 +14,7 @@ from random import randint
 import pysam
 from collections import defaultdict
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 
 def create_eij_ncls_dict(standard_event_dict):
