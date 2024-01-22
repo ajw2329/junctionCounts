@@ -3,12 +3,12 @@ import sys
 import argparse
 import copy
 import subprocess
-import cPickle as pickle
+import pickle as pickle
 import time
 import re
 from datetime import datetime
 
-__version__ = "0.1.2"
+__version__ = "0.1.0"
 
 ####TODO: improve by writing the following functions:
 ########## 1) Select flanking exon
@@ -564,7 +564,7 @@ def classify_event(pre_common, post_common, tx1_unique, tx2_unique, form_1_exons
     #print >> sys.stderr, outdict
 
     if event_type == "WHOOPS":
-         print outdict
+         print(outdict)
 
     return outdict
 
@@ -603,7 +603,7 @@ def write_intron_bedfile(
             intron_bedfile.write("\t".join([chrom, intron_start, intron_end, junction + "|" + putative_excluded_form_transcripts, "1000", strand]) + "\n")
         else:
 
-            print "Warning: Intron between", junction, "is either too short, or does not have a positive, nonzero length. Skipping . . . "
+            print("Warning: Intron between", junction, "is either too short, or does not have a positive, nonzero length. Skipping . . . ")
 
     intron_bedfile.close()
 
@@ -647,7 +647,7 @@ def call_bedtools_intersect(outdir, bedtools_path):
     try:
         subprocess.check_output(bedtools_command, shell = True, stderr = subprocess.STDOUT)
     except subprocess.CalledProcessError as e:
-        print e.output
+        print(e.output)
         sys.exit("Bedtools intersect failed in 'call_bedtools_intersect'.  RI inference failed. Exiting . . . ")
 
     #subprocess.call(bedtools_command, shell = True)
@@ -866,7 +866,7 @@ def main(args, transcript_dict = None):
 
     start_time = time.time()
 
-    print "{0}: {1} seconds elapsed. Starting infer_pairwise_events.  Now parsing arguments.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+    print("{0}: {1} seconds elapsed. Starting infer_pairwise_events.  Now parsing arguments.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1))))
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--transcript_gtf", type = str, help = "Full transcript gtf file.  Not required, but if not provided a transcript dict must be passed as a parameter to the main function.")
@@ -911,43 +911,43 @@ def main(args, transcript_dict = None):
 
     if transcript_gtf is not None:
 
-        print "{0}: {1} seconds elapsed. Arguments parsed.  Now importing transcriptome gtf.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+        print("{0}: {1} seconds elapsed. Arguments parsed.  Now importing transcriptome gtf.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1))))
         
         standard_transcript_dict = splice_lib.generate_standard_transcript_dict(transcript_gtf)
 
     elif transcript_dict is not None:
 
-        print "{0}: {1} seconds elapsed. Arguments parsed.  Now copying transcript dict.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+        print("{0}: {1} seconds elapsed. Arguments parsed.  Now copying transcript dict.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1))))
 
         standard_transcript_dict = copy.deepcopy(transcript_dict)
 
-    print "{0}: {1} seconds elapsed. Transcriptome imported.  Now sorting transcript exons.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+    print("{0}: {1} seconds elapsed. Transcriptome imported.  Now sorting transcript exons.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1))))
 
     splice_lib.sort_transcript_dict_exons(standard_transcript_dict)
 
-    print "{0}: {1} seconds elapsed. Sorted transcript exons.  Now adding transcript junctions to transcript dict.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+    print("{0}: {1} seconds elapsed. Sorted transcript exons.  Now adding transcript junctions to transcript dict.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1))))
 
     splice_lib.add_junctions_to_transcript_dict(standard_transcript_dict)
 
-    print "{0}: {1} seconds elapsed. Added transcript junctions.  Now filtering transcriptome to remove transcripts with short introns/exons.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+    print("{0}: {1} seconds elapsed. Added transcript junctions.  Now filtering transcriptome to remove transcripts with short introns/exons.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1))))
 
     filter_standard_transcript_dict(standard_transcript_dict, outdir, min_exon_length, min_intron_length, max_exon_length, max_intron_length)
 
-    print "{0}: {1} seconds elapsed. Filtered transcriptome.  Now creating junction-indexed transcript dict.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+    print("{0}: {1} seconds elapsed. Filtered transcriptome.  Now creating junction-indexed transcript dict.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1))))
 
     standard_junction_indexed_transcript_dict = splice_lib.index_transcripts_by_junctions(standard_transcript_dict)
 
-    print "{0}: {1} seconds elapsed. Created junction-indexed transcript dict.  Creating node dict to associate groups of transcripts.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+    print("{0}: {1} seconds elapsed. Created junction-indexed transcript dict.  Creating node dict to associate groups of transcripts.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1))))
 
 
     node_index_tx = node_dir(standard_transcript_dict)
 
 
-    print "{0}: {1} seconds elapsed. Created node dict.  Now comparing pairs of transcripts to create standard event dict.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+    print("{0}: {1} seconds elapsed. Created node dict.  Now comparing pairs of transcripts to create standard event dict.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1))))
 
     standard_event_dict = call_compare_transcripts(node_index_tx, standard_transcript_dict)
 
-    print "{0}: {1} seconds elapsed. Created standard event dict.  Now searching for RI events that may lack common nodes.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+    print("{0}: {1} seconds elapsed. Created standard event dict.  Now searching for RI events that may lack common nodes.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1))))
 
     write_intron_bedfile(
         standard_junction_indexed_transcript_dict, 
@@ -961,7 +961,7 @@ def main(args, transcript_dict = None):
 
     retained_intron_events(outdir, standard_transcript_dict, standard_event_dict)
 
-    print "{0}: {1} seconds elapsed. RI event identification complete.  Now cleaning/filtering events.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))    
+    print("{0}: {1} seconds elapsed. RI event identification complete.  Now cleaning/filtering events.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1))))    
 
     splice_lib.complete_event_dict(standard_event_dict, suppress_unique_edges = True, suppress_eij = False, no_ends = True, inform_using_ri_events = True)
     splice_lib.collapse_redundant_junction_events(standard_event_dict, outdir)
@@ -976,12 +976,12 @@ def main(args, transcript_dict = None):
 
     filter_event_dict(standard_event_dict, outdir, min_exon_length, min_intron_length, max_exon_length, max_intron_length, min_AP_AT_dist = min_AP_AT_dist)
     
-    print "{0}: {1} seconds elapsed. Event cleaning/filtering complete.  Now renaming events.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+    print("{0}: {1} seconds elapsed. Event cleaning/filtering complete.  Now renaming events.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1))))
 
     standard_event_dict = splice_lib.rename_events(standard_event_dict)
 
 
-    print "{0}: {1} seconds elapsed. Event renaming complete.  Now separating events into junctioncounts friendly/unfriendly categories.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+    print("{0}: {1} seconds elapsed. Event renaming complete.  Now separating events into junctioncounts friendly/unfriendly categories.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1))))
 
     friendly, unfriendly = separate_jc_friendly_events(
         standard_event_dict,
@@ -989,7 +989,7 @@ def main(args, transcript_dict = None):
 
 
     if not suppress_output:
-        print "{0}: {1} seconds elapsed. Events separated.  Now outputting event gtfs and bedfiles.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+        print("{0}: {1} seconds elapsed. Events separated.  Now outputting event gtfs and bedfiles.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1))))
 
         splice_lib.output_event_gtf(friendly, outdir)
         splice_lib.output_event_gtf(unfriendly, outdir, name = "junctioncounts_unfriendly_events")
@@ -997,34 +997,34 @@ def main(args, transcript_dict = None):
         splice_lib.output_event_bedfile(unfriendly, outdir, name = "junctioncounts_unfriendly_events")
 
 
-        print "{0}: {1} seconds elapsed. Event gtf output.  Now outputting MISO-style gff3s.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+        print("{0}: {1} seconds elapsed. Event gtf output.  Now outputting MISO-style gff3s.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1))))
 
         splice_lib.output_miso_event_gff3(friendly, outdir)
         splice_lib.output_miso_event_gff3(unfriendly, outdir, name="junctioncounts_unfriendly_events")
 
         if dump_pkl_file:
-            print "{0}: {1} seconds elapsed. MISO_style event gff3 output.  Now dumping pickle file of junctioncounts-friendly event dict.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+            print("{0}: {1} seconds elapsed. MISO_style event gff3 output.  Now dumping pickle file of junctioncounts-friendly event dict.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1))))
             pickle.dump(friendly, open(outdir + "/splice_lib_events.pkl", 'wb' ), -1 )
-            print "{0}: {1} seconds elapsed. Pickle file dump complete.  Now outputting IOE file.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+            print("{0}: {1} seconds elapsed. Pickle file dump complete.  Now outputting IOE file.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1))))
 
         else:
-            print "{0}: {1} seconds elapsed. MISO_style event gff3 output.  Now outputting IOE files.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+            print("{0}: {1} seconds elapsed. MISO_style event gff3 output.  Now outputting IOE files.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1))))
 
         output_ioe(outdir, friendly, standard_transcript_dict)
         output_ioe(outdir, unfriendly, standard_transcript_dict, name = "junctioncounts_unfriendly_events")
 
-        print "{0}: {1} seconds elapsed. IOE file output.  Tabulating event type counts.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+        print("{0}: {1} seconds elapsed. IOE file output.  Tabulating event type counts.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1))))
 
     else:
 
-        print "{0}: {1} seconds elapsed. Events separated.  Tabulating event type counts.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
+        print("{0}: {1} seconds elapsed. Events separated.  Tabulating event type counts.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1))))
 
     event_type_counts = splice_lib.assess_event_types(standard_event_dict)
 
-    print "{0}: {1} seconds elapsed. Event type counts tabulated.  Found {2} total events with {3} MS, {4} SE, {5} A3, {6} A5, {7} AF, {8} AL, {9} MF, {10} ML, {11} CF, {12} CL, {13} UF, {14} UL, {15} AT, {16} AP, {17} RI, {18} MX, {19} CO, {20} AB and {21} MR events.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)), str(event_type_counts["total"]), str(event_type_counts["MS"]), str(event_type_counts["SE"]), str(event_type_counts["A3"]), str(event_type_counts["A5"]), str(event_type_counts["AF"]), str(event_type_counts["AL"]), str(event_type_counts["MF"]), str(event_type_counts["ML"]), str(event_type_counts["CF"]), str(event_type_counts["CL"]), str(event_type_counts["UF"]), str(event_type_counts["UL"]), str(event_type_counts["AT"]), str(event_type_counts["AP"]),  str(event_type_counts["RI"]), str(event_type_counts["MX"]),  str(event_type_counts["CO"]), str(event_type_counts["AB"]), str(event_type_counts["MR"]))
+    print("{0}: {1} seconds elapsed. Event type counts tabulated.  Found {2} total events with {3} MS, {4} SE, {5} A3, {6} A5, {7} AF, {8} AL, {9} MF, {10} ML, {11} CF, {12} CL, {13} UF, {14} UL, {15} AT, {16} AP, {17} RI, {18} MX, {19} CO, {20} AB and {21} MR events.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)), str(event_type_counts["total"]), str(event_type_counts["MS"]), str(event_type_counts["SE"]), str(event_type_counts["A3"]), str(event_type_counts["A5"]), str(event_type_counts["AF"]), str(event_type_counts["AL"]), str(event_type_counts["MF"]), str(event_type_counts["ML"]), str(event_type_counts["CF"]), str(event_type_counts["CL"]), str(event_type_counts["UF"]), str(event_type_counts["UL"]), str(event_type_counts["AT"]), str(event_type_counts["AP"]),  str(event_type_counts["RI"]), str(event_type_counts["MX"]),  str(event_type_counts["CO"]), str(event_type_counts["AB"]), str(event_type_counts["MR"])))
 
-    print "{0}: {1} seconds elapsed. infer_pairwise_events complete.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1)))
-    print "Ceci n'est pas un algorithme bioinformatique."
+    print("{0}: {1} seconds elapsed. infer_pairwise_events complete.".format(str(datetime.now().replace(microsecond = 0)), str(round(time.time() - start_time, 1))))
+    print("Ceci n'est pas un algorithme bioinformatique.")
 
     return friendly
 
