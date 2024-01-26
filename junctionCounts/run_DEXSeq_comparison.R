@@ -54,7 +54,7 @@ for (sample in sampleTable$file) {
 }
 
 # Compare the dispersion of included and excluded junction read counts using DEXSeq.
-print("Initializing DEXSeq.  This can take a while...")
+print("Initializing DEXSeq. This can take a while...")
 counts <- sampleTable$count_file
 flattenedFile <- file.path(splice_lib_events, 'splice_lib_events_dexseq.gff')
 dxd <- DEXSeqDataSetFromHTSeq(
