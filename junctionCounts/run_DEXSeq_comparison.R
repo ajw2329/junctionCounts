@@ -8,7 +8,7 @@ if (length(args) != 3) {
 }
 
 if (!require("pacman")) install.packages("pacman")
-pacman::p_load(DEXSeq, dplyr, tidyr, opt)
+pacman::p_load(DEXSeq, dplyr, tidyr)
 
 splice_lib_events <- args[1]
 dataDir <- args[2]
