@@ -25,17 +25,14 @@ genes <- read.csv(file.path(splice_lib_events, 'splice_lib_events.ioe'), sep='\t
 # Generate the flattened event exonic part file for DEXSeq.
 gtf <- read.csv(file.path(splice_lib_events, 'splice_lib_events.bed'), sep='\t', header=F)
 aggregate <- gtf %>% mutate(source = 'splice_lib_event', feature = 'aggregate_gene', name = V4, score = '.', 
-                            attribute = paste0('gene_id "', V4, '"')) %>%
-  dplyr::select(1, 7, 8, 2, 3, 9, 6, 10, 11)
+                            attribute = paste0('gene_id "', V4, '"'))
 included <- gtf %>% mutate(source = 'splice_lib_event', feature = 'exonic_part', name = V4, score = '.',
                            attribute = paste0('transcripts "', V4, 
-                                              '_included"; exonic_part_number "001"; gene_id "', V4, '"')) %>%
-  dplyr::select(1, 7, 8, 2, 3, 9, 6, 10, 11)
+                                              '_included"; exonic_part_number "001"; gene_id "', V4, '"'))
 excluded <- gtf %>% mutate(source = 'splice_lib_event', feature = 'exonic_part', name = V4, score = '.',
                            attribute = paste0('transcripts "', V4, 
-                                              '_excluded"; exonic_part_number "002"; gene_id "', V4, '"')) %>%
-  dplyr::select(1, 7, 8, 2, 3, 9, 6, 10, 11) 
-gff <- rbind(aggregate, included, excluded) %>% arrange(name, feature)
+                                              '_excluded"; exonic_part_number "002"; gene_id "', V4, '"'))
+gff <- rbind(aggregate, included, excluded) %>% dplyr::select(1, 7, 8, 2, 3, 9, 6, 10, 11) %>% arrange(name, feature)
 write.table(gff, file.path(splice_lib_events, 'splice_lib_events_dexseq.gff'), row.names=F, col.names=F, quote=F, sep="\t")
 
 # Generate separate junction read count files for the included and excluded form of events.
