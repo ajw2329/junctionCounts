@@ -18,8 +18,9 @@ sampleTable <- read.csv(args[3]) %>%
 # Collect event data.
 coords <- read.csv(file.path(splice_lib_events, 'splice_lib_events.bed'), sep='\t', header=F)[c(1, 2, 3, 4, 6)]
 genes <- read.csv(file.path(splice_lib_events, 'splice_lib_events.ioe'), sep='\t', header=T)[2:3] %>%
-  mutate(event_id = sub('.', '', event_id)) %>% 
-  left_join(coords, by=c("event_id"="V4")) %>%
+  separate(event_id, c("gene", "event"), ";") %>% 
+  left_join(coords, by=c("event"="V4")) %>%
+  dplyr::select(-2) %>%
   setNames(., c("gene", "event_id", "chr", "start", "end", "strand"))
 
 # Generate the flattened event exonic part file for DEXSeq.
