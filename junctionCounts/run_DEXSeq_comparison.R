@@ -104,8 +104,9 @@ merged <- cbind(quantA, quantB[2:4]) %>%
   mutate(dpsi = get(names(.)[7]) - get(names(.)[4])) %>%
   left_join(genes, by="event_id") %>%
   left_join(event_qval, by="event_id") %>%
-  mutate(sig = ifelse((abs(dpsi) >= 0.1) & (event_qval <= 0.05), 1, 0)) %>%
-  dplyr::select(9, 1, 10, 11, 12, 13, 2, 3, 4, 5, 6, 7, 8, 14, 15)
+  mutate(sig = ifelse((abs(dpsi) >= 0.1) & (event_qval <= 0.05), 1, 0),
+        event_type = substr(event_id, start = 1, stop = 2)) %>%
+  dplyr::select(9, 1, 16, 10, 11, 12, 13, 2, 3, 4, 5, 6, 7, 8, 14, 15)
 
 outName <- paste0(unique(sampleTable$condition)[1], "_", unique(sampleTable$condition)[2], "_dpsi.csv")
 write.csv(merged, file.path(dataDir, outName), row.names=F)
