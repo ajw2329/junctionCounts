@@ -6,11 +6,11 @@ junctionCounts is a tool intended to identify and quantify binary alternative sp
 
 # Dependencies
 
-`python2.7`  
+`python3`  
 `ncls` (https://github.com/hunt-genes/ncls)  
 `numpy`  
 `pysam`
-`splice_lib` (github.com/ajw2329/splice_lib/ - install using `python2.7 setup.py install`)
+`splice_lib` (github.com/ajw2329/splice_lib/ - install using `python setup.py install`)
 
 Note that `ncls`, `numpy`, and `pysam` are all python packages that can be installed using `pip install package_name`.
 
@@ -45,7 +45,7 @@ AB - ambiguous (not shown - these occur in situations where multiple possible ev
 ## Basic usage
 
 ```
-python2.7 /path/to/infer_pairwise_events.py --transcript_gtf /path/to/transcriptome.gtf --outdir /path/to/output/dir/
+python /path/to/infer_pairwise_events.py --transcript_gtf /path/to/transcriptome.gtf --outdir /path/to/output/dir/
 ```
 
 ### Input file description
@@ -169,7 +169,7 @@ optional arguments:
 ## Basic usage
 
 ```
-python2.7 /path/to/junctionCounts.py --event_gtf /path/to/splice_lib_events.gtf --bam /path/to/input_file.bam --outdir /path/to/output/dir/ --sample_name sample_name
+python /path/to/junctionCounts.py --event_gtf /path/to/splice_lib_events.gtf --bam /path/to/input_file.bam --outdir /path/to/output/dir/ --sample_name sample_name
 ```
 
 ### Output file descriptions
@@ -281,5 +281,54 @@ optional arguments:
   --n_bootstraps N_BOOTSTRAPS
                         Number of bootstraps. default = 0
 ```
+# run_DEXSeq_comparison.R
+
+## Description
+
+`run_DEXSeq_comparison.R` takes three arguments: (1) the full path to the splice_lib_events directory, (2) the full path to the junctionCounts quantification TSV output directory, and (3) the full path to a sample table (.CSV). This step statistically tests changes in PSI between two conditions with at least 2 replicates per condition.
+
+## Example sample_table.csv
+
+| sample | condition | file                        |
+|--------|-----------|-----------------------------|
+| esc_1  | esc       | esc_1_count_psi_outfile.tsv |
+| esc_2  | esc       | esc_2_count_psi_outfile.tsv |
+| esc_3  | esc       | esc_3_count_psi_outfile.tsv |
+| npc_1  | npc       | npc_1_count_psi_outfile.tsv |
+| npc_2  | npc       | npc_2_count_psi_outfile.tsv |
+| npc_3  | npc       | npc_3_count_psi_outfile.tsv |
+
+## Basic usage
+
+```
+Rscript /path/to/run_DEXSeq_comparison.R /path/to/splice_lib_events /path/to/junctionCounts_output /path/to/sample_table.csv
+```
+
+### Output file descriptions
+
+`npc_esc_dpsi.csv`
+
+| gene | event_id | event_type | chr  | start    | end      | strand | esc_mean_ijc | esc_mean_ejc | esc_mean_psi | npc_mean_ijc | npc_mean_ejc | npc_mean_psi | dpsi    | event_qval | sig |
+|------|----------|------------|------|----------|----------|--------|--------------|--------------|--------------|--------------|--------------|--------------|---------|------------|-----|
+| ADD1 | A5.00001 | A5         | chr4 | 2904764  | 2907844  | +      | 254.75       | 307.5        | 0.45125      | 217.5        | 255          | 0.45645      | 0.0052  | 1          | 0   |
+| BRD2 | AF.00001 | AF         | chr6 | 32968660 | 32972141 | +      | 48.25        | 282          | 0.1431       | 118          | 81           | 0.54875      | 0.40565 | 0          | 1   |
 
 
+#### Field descriptions:
+
+`gene` : gene symbol  
+`event_id` : unique name for event  
+`event_type` : type of event  
+`chr` : chromosome  
+`start` : start coordinate of event                                                                                                                                                                 
+`end` : end coordinate of event  
+`strand` : strand  
+`conditionA_mean_ijc` : (float) mean read count of all junctions in the included form across replicates in conditionA   
+`conditionA_mean_ejc` : (float) mean read count of all junctions in the excluded (skipped) form across replicates in conditionA    
+`conditionA_mean_psi` : (float) mean of PSI values computed for all pairs of included, excluded junction counts across replicates in condtionA    
+`conditionB_mean_ijc` : (float) mean read count of all junctions in the included form across replicates in conditionB   
+`conditionB_mean_ejc` : (float) mean read count of all junctions in the excluded (skipped) form across replicates in conditionB    
+`conditionB_mean_psi` : (float) mean of PSI values computed for all pairs of included, excluded junction counts across replicates in condtionB  
+`dpsi` : (float) difference of mean(PSI) between conditions  
+`event_qval` : (float) Q-value describing the positive false discovery rate of the difference of mean(PSI) between conditions.  
+`sig` : (binary) 1 means the event is significantly different between conditions (|dpsi| ≥ 0.1 & event_qval ≤ 0.05), 0 means the event is not significantly different between conditions (based on the aforementioned cutoffs).
