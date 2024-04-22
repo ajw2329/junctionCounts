@@ -10,7 +10,8 @@ junctionCounts is a tool intended to identify and quantify binary alternative sp
 `ncls` (https://github.com/hunt-genes/ncls)  
 `numpy`  
 `pysam`
-`splice_lib` (github.com/ajw2329/splice_lib/ - install using `python setup.py install`)  
+`splice_lib` (github.com/ajw2329/splice_lib/ - install using `python setup.py install`)
+`bedtools`
 `R (≥ 3.5.0)` `dplyr` `DEXSeq` `pacman` 
 
 Note that `ncls`, `numpy`, and `pysam` are all python packages that can be installed using `pip install package_name`.
