@@ -321,6 +321,8 @@ optional arguments:
                         conditions to report an event. (Default: 15)
   --min_psi MINIMUM_PSI Minimum max(mean(PSI)) across conditions to report an
                         event. (Default: 0.1)
+  --ri_span RI_SPAN_PSI Maximum max(mean(span_PSI)) across conditions to report
+                        an RI/MR event. (Default: 0.03)
 ```
 
 ### Output file descriptions
