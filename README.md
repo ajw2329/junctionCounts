@@ -350,4 +350,6 @@ optional arguments:
 `conditionB_mean_psi` : (float) mean of PSI values computed for all pairs of included, excluded junction counts across replicates in condtionB  
 `dpsi` : (float) difference of mean(PSI) between conditions  
 `event_qval` : (float) Q-value describing the positive false discovery rate of the difference of mean(PSI) between conditions.  
-`sig` : (binary) 1 means the event is significantly different between conditions (|dpsi| ≥ 0.1 & event_qval ≤ 0.05), 0 means the event is not significantly different between conditions (based on the aforementioned cutoffs).
+`sig` : 1 = event is significantly more included (dpsi ≥ 0.1, event_qval ≤ 0.05) in condition B relative to condition A.   
+         -1 = event is significantly less included (dpsi ≤ -0.1, event_qval ≤ 0.05) in condition B relative to condition A.  
+          0 = event is not significantly different between conditions (|dpsi| < 0.1, event_qval > 0.05).  
