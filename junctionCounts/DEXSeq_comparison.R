@@ -4,15 +4,15 @@ if (!require("pacman")) install.packages("pacman")
 pacman::p_load(DEXSeq, dplyr, tidyr, optparse)
 
 option_list = list(
-  make_option(c("-e", "--events"), type="character", default=NULL, 
+  make_option(c("-e", "--events"), action = "store", type="character", default=NULL, 
               help="path to infer_pairwise_events directory", metavar="infer_pairwise_events_dir"),
-  make_option(c("-p", "--psi_files"), type="character", default=NULL, 
+  make_option(c("-p", "--psi_files"), action = "store", type="character", default=NULL, 
               help="path to junctionCounts *psi_outfile.tsv files", metavar="junctionCounts_psi_tsv_dir"),
-  make_option(c("-s", "--sample_table"), type="character", default=NULL, 
+  make_option(c("-s", "--sample_table"), action = "store", type="character", default=NULL, 
               help="path to sample table: sample,condition,file (.csv)", metavar="sample_table"),
-  make_option("--min_jc", type="integer", default=15, 
+  make_option("--min_jc", action = "store", type="double", default=15.0, 
               help="minimum number of total mean junction read support across conditions to report an event", metavar="minimum_jc"),
-  make_option("--min_psi", type="double", default=0.1, 
+  make_option("--min_psi", action = "store", type="double", default=0.1, 
               help="minimum max(mean(PSI)) across conditions to report an event", metavar="minimum_psi")) 
 
 opt <- parse_args(OptionParser(option_list=option_list))
@@ -107,18 +107,20 @@ collectData <- function(cond) {
 
 quantA <- collectData(unique(sampleTable$condition)[1])
 quantB <- collectData(unique(sampleTable$condition)[2])
-merged <- cbind(quantA, quantB[2:4]) %>% 
+psi <- cbind(quantA[c(1, 4)], quantB[4]) %>% setNames(., c("event_id", "a", "b")) %>% 
+  filter(pmax(a, b, na.rm = TRUE) >= opt$min_psi)
+
+merged <- cbind(quantA, quantB[2:4]) %>%
+  filter(rowSums(dplyr::select(., c(colnames(.)[c(2, 3, 5, 6)])), na.rm = TRUE) >= opt$min_jc,
+         event_id %in% psi$event_id) %>%
   mutate(dpsi = get(names(.)[7]) - get(names(.)[4])) %>%
   left_join(genes, by="event_id") %>%
   left_join(event_qval, by="event_id") %>%
   mutate_at(14, ~replace_na(., 1)) %>%
   mutate(sig = ifelse((dpsi >= 0.1) & (event_qval <= 0.05), 1, 0),
          event_type = substr(event_id, start = 1, stop = 2)) %>%
-  mutate(sig = ifelse((dpsi <= -0.1) & (event_qval <= 0.05), -1, sig))
-
-psi <- merged[c(2, 10, 13)] %>% setNames(., c("event_id", "a", "b")) %>% filter(pmax(a, b, na.rm = TRUE) >= opt$min_psi)
-merged <- merged %>% filter(rowSums(dplyr::select(., c(colnames(.)[c(8, 9, 11, 12)]))) >= opt$min_jc,
-                            event_id %in% psi$event_id)
+  mutate(sig = ifelse((dpsi <= -0.1) & (event_qval <= 0.05), -1, sig)) %>%
+  dplyr::select(9, 1, 16, 10, 11, 12, 13, 2, 3, 4, 5, 6, 7, 8, 14, 15)
 
 outName <- paste0(unique(sampleTable$condition)[1], "_", unique(sampleTable$condition)[2], "_dpsi.csv")
 write.csv(merged, file.path(dataDir, outName), row.names=F)
