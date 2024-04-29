@@ -12,7 +12,7 @@ junctionCounts is a tool intended to identify and quantify binary alternative sp
 `pysam`
 `splice_lib` (github.com/ajw2329/splice_lib/ - install using `python setup.py install`)  
 `bedtools`  
-`R (≥ 3.5.0)` `dplyr` `DEXSeq` `pacman` 
+`R (≥ 3.5.0)` `dplyr` `DEXSeq` `pacman` `optparse` 
 
 Note that `ncls`, `numpy`, and `pysam` are all python packages that can be installed using `pip install package_name`.
 
@@ -287,7 +287,13 @@ optional arguments:
 
 ## Description
 
-`run_DEXSeq_comparison.R` takes three arguments: (1) the full path to the splice_lib_events directory, (2) the full path to the junctionCounts quantification TSV output directory, and (3) the full path to a sample table (.CSV). This step statistically tests changes in PSI between two conditions with at least 2 replicates per condition.
+`DEXSeq_comparison.R` This step statistically tests changes in PSI between two conditions with at least 2 replicates per condition.
+
+## Basic usage
+
+```
+Rscript /path/to/DEXSeq_comparison.R -e /path/to/infer_pairwise_events -p /path/to/jc_psi_files -s /path/to/sampleTable.csv 
+```
 
 ## Example sample_table.csv
 
@@ -300,10 +306,21 @@ optional arguments:
 | npc_2  | npc       | npc_2_count_psi_outfile.tsv |
 | npc_3  | npc       | npc_3_count_psi_outfile.tsv |
 
-## Basic usage
+## Help statement
 
 ```
-Rscript /path/to/run_DEXSeq_comparison.R /path/to/splice_lib_events /path/to/junctionCounts_output /path/to/sample_table.csv
+usage: DEXSeq_comparison.py [-h] [-e, --events INFER_PAIRWISE_EVENTS_DIR]
+                                [-p, --psi_dir PSI_TSV_DIR]
+                                [-s, --sample_table SAMPLE_TABLE]
+                                [--min_jc MINIMUM_JC]
+                                [--min_psi MINIMUM_PSI]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --min_jc MINIMUM_JC   Minimum number of total mean junction read suport across
+                        conditions to report an event. (Default: 15)
+  --min_psi MINIMUM_PSI Minimum max(mean(PSI)) across conditions to report an
+                        event. (Default: 0.1)
 ```
 
 ### Output file descriptions
