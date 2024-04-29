@@ -13,7 +13,11 @@ option_list = list(
   make_option("--min_jc", action = "store", type="double", default=15.0, 
               help="minimum number of total mean junction read support across conditions to report an event", metavar="minimum_jc"),
   make_option("--min_psi", action = "store", type="double", default=0.1, 
-              help="minimum max(mean(PSI)) across conditions to report an event", metavar="minimum_psi")) 
+              help="minimum max(mean(PSI)) across conditions to report an event", metavar="minimum_psi"),
+  make_option("--ri_span", action = "store", type="double", default=0.03, 
+              help="maximum max(mean(span_PSI)) across conditions to report a RI/MR event.\n
+              span_PSI is the difference in PSI between the flanking junctions;\n
+              the smaller the value, the more stringent.", metavar="ri_span_psi")) 
 
 opt <- parse_args(OptionParser(option_list=option_list))
 
@@ -83,24 +87,28 @@ event_qval <- as.data.frame(perGeneQValue(dxr)) %>%
 collectData <- function(cond) {
   events <- read.csv(file.path(dataDir, sampleTable$file[1]), sep="\t")[2] %>% arrange(event_id)
   meanPsi <- events
+  spanPsi <- events
   ijc <- events
   ejc <- events
   
   for (file in subset(sampleTable, sampleTable$condition == cond)$file) {
     x <- read.csv(file.path(dataDir, file), sep="\t")[c(2, 6, 12, 10, 11)]
     meanPsi <- meanPsi %>% left_join(x[1:2], by="event_id")
+    spanPsi <- spanPsi %>% left_join(x[c(1, 3)], by="event_id")
     ijc <- ijc %>% left_join(x[c(1, 4)], by="event_id")
     ejc <- ejc %>% left_join(x[c(1, 5)], by="event_id")
   }
   
   meanPsi <- meanPsi %>% replace(is.na(.), 0) %>% mutate(mean_psi = select(., -c(1)) %>% rowMeans(na.rm = TRUE))
+  spanPsi <- spanPsi %>% replace(is.na(.), 0) %>% mutate(mean_spanPsi = select(., -c(1)) %>% rowMeans(na.rm = TRUE))
   ijc <- ijc %>% replace(is.na(.), 0) %>% mutate(mean_ijc = select(., -c(1)) %>% rowMeans(na.rm = TRUE))
   ejc <- ejc %>% replace(is.na(.), 0) %>% mutate(mean_ejc = select(., -c(1)) %>% rowMeans(na.rm = TRUE))
   quantData <- cbind(ijc[c("event_id", "mean_ijc")], ejc["mean_ejc"],
-                   meanPsi["mean_psi"])
+                   meanPsi["mean_psi"], spanPsi["mean_spanPsi"])
   names(quantData)[2] <- paste0(cond, "_mean_ijc")
   names(quantData)[3] <- paste0(cond, "_mean_ejc")
   names(quantData)[4] <- paste0(cond, "_mean_psi")
+  names(quantData)[5] <- paste0(cond, "_mean_spanPsi")
   
   return(quantData)
 }
@@ -109,10 +117,12 @@ quantA <- collectData(unique(sampleTable$condition)[1])
 quantB <- collectData(unique(sampleTable$condition)[2])
 psi <- cbind(quantA[c(1, 4)], quantB[4]) %>% setNames(., c("event_id", "a", "b")) %>% 
   filter(pmax(a, b, na.rm = TRUE) >= opt$min_psi)
+spanPsi <- cbind(quantA[c(1, 5)], quantB[5]) %>% setNames(., c("event_id", "a", "b")) %>% 
+  filter(grepl('R', event_id), pmax(a, b, na.rm = TRUE) > opt$ri_span)
 
-merged <- cbind(quantA, quantB[2:4]) %>%
+merged <- cbind(quantA[1:4], quantB[2:4]) %>%
   filter(rowSums(dplyr::select(., c(colnames(.)[c(2, 3, 5, 6)])), na.rm = TRUE) >= opt$min_jc,
-         event_id %in% psi$event_id) %>%
+         event_id %in% psi$event_id, !(event_id %in% spanPsi$event_id)) %>%
   mutate(dpsi = get(names(.)[7]) - get(names(.)[4])) %>%
   left_join(genes, by="event_id") %>%
   left_join(event_qval, by="event_id") %>%
