@@ -283,11 +283,11 @@ optional arguments:
   --n_bootstraps N_BOOTSTRAPS
                         Number of bootstraps. default = 0
 ```
-# run_DEXSeq_comparison.R
+# DEXSeq_comparison.R
 
 ## Description
 
-`DEXSeq_comparison.R` This step statistically tests changes in PSI between two conditions with at least 2 replicates per condition.
+`DEXSeq_comparison.R` statistically tests changes in PSI between two conditions with at least 2 replicates per condition.
 
 ## Basic usage
 
