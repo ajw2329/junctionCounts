@@ -11,13 +11,13 @@ option_list = list(
   make_option(c("-s", "--sample_table"), action = "store", type="character", default=NULL, 
               help="path to sample table: sample,condition,file (.csv)", metavar="sample_table"),
   make_option("--min_jc", action = "store", type="double", default=15.0, 
-              help="minimum number of total mean junction read support across conditions to report an event", metavar="minimum_jc"),
+              help="minimum number of total mean junction read support across conditions to report an event (default: 15.0)", metavar="minimum_jc"),
   make_option("--min_psi", action = "store", type="double", default=0.1, 
-              help="minimum max(mean(PSI)) across conditions to report an event", metavar="minimum_psi"),
+              help="minimum max(mean(PSI)) across conditions to report an event  (default: 0.1)", metavar="minimum_psi"),
   make_option("--ri_span", action = "store", type="double", default=0.03, 
               help="maximum max(mean(span_PSI)) across conditions to report a RI/MR event.\n
               span_PSI is the difference in PSI between the flanking junctions;\n
-              the smaller the value, the more stringent.", metavar="ri_span_psi")) 
+              the smaller the value, the more stringent  (default: 0.03).", metavar="ri_span_psi")) 
 
 opt <- parse_args(OptionParser(option_list=option_list))
 
