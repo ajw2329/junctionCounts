@@ -17,7 +17,11 @@ option_list = list(
   make_option("--ri_span", action = "store", type="double", default=0.03, 
               help="maximum max(mean(span_PSI)) across conditions to report a RI/MR event.\n
               span_PSI is the difference in PSI between the flanking junctions;\n
-              the smaller the value, the more stringent  (default: 0.03).", metavar="ri_span_psi")) 
+              the smaller the value, the more stringent  (default: 0.03).", metavar="ri_span_psi"),
+  make_option("--sig_dpsi", action = "store", type="double", default=0.1, 
+              help="minimum event dPSI to consider significant. (default: 0.1).", metavar="sig_dpsi"),
+  make_option("--sig_qval", action = "store", type="double", default=0.05, 
+              help="maximum event Q-value to consider significant. (default: 0.05).", metavar="sig_qval")) 
 
 opt <- parse_args(OptionParser(option_list=option_list))
 
@@ -127,9 +131,9 @@ merged <- cbind(quantA[1:4], quantB[2:4]) %>%
   left_join(genes, by="event_id") %>%
   left_join(event_qval, by="event_id") %>%
   mutate_at(14, ~replace_na(., 1)) %>%
-  mutate(sig = ifelse((dpsi >= 0.1) & (event_qval <= 0.05), 1, 0),
+  mutate(sig = ifelse((dpsi >= opt$sig_dpsi) & (event_qval <= opt$sig_qval), 1, 0),
          event_type = substr(event_id, start = 1, stop = 2)) %>%
-  mutate(sig = ifelse((dpsi <= -0.1) & (event_qval <= 0.05), -1, sig)) %>%
+  mutate(sig = ifelse((dpsi <= -opt$sig_dpsi) & (event_qval <= opt$sig_qval), -1, sig)) %>%
   dplyr::select(9, 1, 16, 10, 11, 12, 13, 2, 3, 4, 5, 6, 7, 8, 14, 15)
 
 outName <- paste0(unique(sampleTable$condition)[1], "_", unique(sampleTable$condition)[2], "_dpsi.csv")
