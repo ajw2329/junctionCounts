@@ -4,8 +4,6 @@ junctionCounts is a tool intended to identify and quantify binary alternative sp
 
 ![Screenshot](./figures/junctionCounts_flowchart.png)
 
-# Quick start
-
 # Dependencies
 
 `python3`  
