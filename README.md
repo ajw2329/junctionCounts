@@ -2,6 +2,8 @@
 
 junctionCounts is a tool intended to identify and quantify binary alternative splicing events from RNA-seq data. junctionCounts currently consists of two primary utilities: `infer_pairwise_events.py`, which identifies binary alternative splicing events (e.g. skipped exon events), and `junctionCounts.py`, which quantifies those events (i.e. provides a percent-spliced-in, or PSI value) from Illumina RNA-seq data (specifically from a BAM file). These utilities can be used independent of one another, and events identified independently by `infer_pairwise_events.py` and the transcripts with which they are associated (as marked in the .ioe files - a format introduced by the authors of SUPPA) may be useful to a variety of researchers, regardless of their interest in performing short read quantification. While `junctionCounts.py` could in principle be run without the use of `infer_pairwise_events.py`, it may be easiest to use both tools together for quantification due to the specific reqirements of the input GTF for the quantification.
 
+![Screenshot](./figures/junctionCounts_flowchart.png)
+
 # Quick start
 
 # Dependencies
@@ -16,13 +18,21 @@ junctionCounts is a tool intended to identify and quantify binary alternative sp
 
 Note that `ncls`, `numpy`, and `pysam` are all python packages that can be installed using `pip install package_name`.
 
+## Benchmarking
+
+Panels A-K: We evaluated junctionCounts on its performance relative to four established splicing analysis tools: MAJIQ v2.5.6.dev1+g8423f68b (https://doi.org/10.1038/s41467-023-36585-y), rMATS-turbo v4.3.0 (https://doi.org/10.1038/s41596-023-00944-2), splAdder v3.0.4 (https://doi.org/10.1093/bioinformatics/btw076) and Whippet v1.6.2 (https://doi.org/10.1016/j.molcel.2018.08.018). We generated four paired-end simulated datasets from real RNA-seq data using polyester v1.36.0 (https://doi.org/10.1093/bioinformatics/btv272) with the arguments: read.length = 100, fragment.length.min = 100, fragment.length.max = 500, fragment.length.mean = 180, fragment.length.sd = 40 and simulated.sequencing.error = TRUE. Three of the simulated datasets: 25M, 50M and 75M, were used to evaluate performance at different library depths (25, 50 and 75 million reads per library respectively). These datasets were modeled on mouse cerebellum and liver RNA-seq data in triplicate for each cell type from Vaquero-Garcia et al. (2016) (https://doi.org/10.7554/eLife.11752), who replicated the experiments in Zhang et al. (2014) (https://doi.org/10.1073/pnas.1408886111). The fourth simulated dataset was modeled on human RNA-seq data from HeLa cells treated with either spliceostatin A or DMSO (https://doi.org/10.1038/s41467-017-02007-z) at 50 million reads per library with triplicates for each condition. This dataset introduced a larger pool of potential AS events to test compared to the murine simulated datasets, and importantly increased the total number of MR events tested.
+
+Panels L-N: To test junctionCounts' NMD event predictions, we procured RT-PCR data for well-characterized NMD targets and accompanying RNA-seq data from HEK-293 cells upon UPF1 knockdown versus non-targeting siRNA (https://doi.org/10.15252/embj.2021108898). We then ran junctionCounts and its partner utilities with default settings on the RNA-seq data to predict NMD switch events within the NMD targets verified with RT-PCR in the original study. Out of the 13 predicted NMD switch events associated with the NMD targets, 11 had the expected dPSI directionality (Panel L). We then used the same approach on a dataset in which treatment with emetine, a translation elongation inhibitor, was reported to increase the abundance of NMD substrates in HEK-293 T cells (https://doi.org/10.1093/nar/gkw1109). cdsInsertion and findSwitchEvents identified 636 potential NMD switch events with significant changes in splicing (|dPSI| ≥ 0.1 and Q-value ≤ 0.05) upon emetine treatment, out of which 472 (74.2%) exhibited the expected dPSI directionality (Panels M, N).
+
+![Screenshot](./figures/benchmarking_results.png)  
+
 # infer_pairwise_events.py
 
 ## Description
 
-`infer_pairwise_events.py` takes as input a transcriptome GTF file and performs a pairwise comparison of all overlapping transcripts to identify the set of (one or more) minimal binary alternative splicing (or other forms of co/post-transcriptional processing) events that differentiate each pair. `infer_pairwise_events.py` considers an alternative event to be a collection of non-shared (i.e. unique to one transcript in the considered pair) exon boundaries that is bounded either a) by a set of shared outer exon boundaries, or b) by transcript termini. This definition includes all canonical binary alternative splicing events (of which the author is aware such as skipped exons, alternative donors/acceptors, alternative first/last exons) while also including non-canonical alternative splicing events. A schematic illustrating the events in question is below. Note that certain event "types" (specifically CO, CF, and CL) are generic terms that stand for 'complex', 'complex first', and 'complex last' respectively. These terms do not relate to modern concepts of alternative splicing complexity (i.e. non-binary events) but rather are buckets for events that both a) do not fit into the other, more specific categories, and b) do not involve the transcript termini (CO), involve different 5'-termini (CF), or involve different 3'-termini (CL). This also applies to event types MF, ML, MS, MR (multiple first, last, multiple skipped exon, and multiple retained intron respectively) - these events are highly analogous to AF, AL and SE events, but are not restricted to one pair of alternative exons in the case of AF, AL (for example, an MF or ML event could have 3 exons unique to the included form and two unique to the excluded form) or a single alternative exon in the case of SE. UF and UL events are another pair of unconventional events. They are situations in which the included form transcript's penterminal exon is the excluded form transcript's terminal exon, and the included form contains one additional (up or downstream respectively) exon. These events can be found in established annotations but seem unusual and are possibly artifactual.
+`infer_pairwise_events.py` takes as input a transcriptome GTF file and performs a pairwise comparison of all overlapping transcripts to identify the set of (one or more) minimal binary alternative splicing (or other forms of co/post-transcriptional processing) events that differentiate each pair. `infer_pairwise_events.py` considers an alternative event to be a collection of non-shared (i.e. unique to one transcript in the considered pair) exon boundaries that is bounded either a) by a set of shared outer exon boundaries, or b) by transcript termini. This definition includes all canonical binary alternative splicing events (of which the author is aware such as skipped exons, alternative donors/acceptors, alternative first/last exons) while also including non-canonical alternative splicing events. A schematic illustrating the events in question is below. Note that certain event "types" (specifically CO, CF, and CL) are generic terms that stand for 'complex', 'complex first', and 'complex last' respectively. These terms do not relate to modern concepts of alternative splicing complexity (i.e. non-binary events) but rather are buckets for events that both a) do not fit into the other, more specific categories, and b) do not involve the transcript termini (CO), involve different 5'-termini (CF), or involve different 3'-termini (CL). This also applies to event types MF, ML, MS, MR (multiple first, last, multiple skipped exon, and multiple retained intron respectively) - these events are highly analogous to AF, AL and SE events, but are not restricted to one pair of alternative exons in the case of AF, AL (for example, an MF or ML event could have 3 exons unique to the included form and two unique to the excluded form) or a single alternative exon in the case of SE. 
 
-![Screenshot](./figures/graphical_abstract.png)
+![Screenshot](./figures/event_models.png)
 
 The meaning of each abbreviation (bearing in mind the above discussion) is as follows:   
 SE - skipped exon   
@@ -38,11 +48,6 @@ MF - multiple first exon
 ML - multiple last exon   
 CF - complex first   
 CL - complex last   
-AT - alternative transcription start site (tandem UTR)   
-AL - alternative polyadenylation (tandem UTR)   
-UF - unique first   
-UL - unique last   
-AB - ambiguous (not shown - these occur in situations where multiple possible event types share the same combination of included, excluded junctions)   
 
 ## Basic usage
 
@@ -212,24 +217,6 @@ python /path/to/junctionCounts.py --event_gtf /path/to/splice_lib_events.gtf --b
 `ijc_max_psi` : (float) included form junction count corresponding to the `max_psi` calculation  
 `ejc_max_psi` : (float) excluded form junction count corresponding to the `max_psi` calculation  
 `mid_psi` : (float) midpoint between `min_psi` and `max_psi`  
-
-
-### Input file descriptions
-
-## Benchmarking
-
-### RT-PCR
-
-It's important to compare RNA-seq quantifications to those of an external method - typically endpoint RT-PCR in the case of alternative splicing. In order to do that with junctionCounts I took advantage of RT-PCR data generated by Vaquero-Garcia et al ([eLife 2016](https://elifesciences.org/articles/11752)) that matches RNA-seq data generated by Zhang et al ([PNAS 2014](https://www.pnas.org/content/111/45/16219)) and matching RT-PCR and RNA-seq data generated by Shen et al ([PNAS 2014](https://www.pnas.org/content/111/51/E5593)). These data were originally generated to benchmark MAJIQ and rMATs respectively, as I am using them here to benchmark junctionCounts.
- 
-I mapped these data with STAR, augmented GENCODE annotations with stringtie, then ran junctionCounts to define and quantify events. I then associated the events with either cassette exons from the Shen et al dataset or LSVs from the Zhang/Vaquero-Garcia dataset using custom scripts (see ./validation/). A one-to-one event-to-cassette exon match was found for all Shen et al RT-PCR points.  In this one case, no matching event was found. For the Vaquero-Garcia et al RT-PCR LSVs, a one-to-one event-to-LSV match was found in all but six cases.  In these six cases, more than one event was found to match the LSV.  After removing the unmatched cassettes/LSVs, the junctionCounts ΔΨ and Ψ values were correlated with the respective RT-PCR values (see below figures 1 and 2), revealing a combined R<sup>2</sup> of 0.95 and 0.91 for ΔΨ and Ψ respectively. Future efforts will expand this section to include results from quantification of simulated data.
-
-![Screenshot](./figures/combined_jc_vs_rtpcr_dpsi.png)  
-*Figure 1*  
-![Screenshot](./figures/combined_jc_vs_rtpcr_psi.png)  
-*Figure 2*  
-
-
 
 ## Help statement
 
