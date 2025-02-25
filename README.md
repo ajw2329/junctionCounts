@@ -303,7 +303,9 @@ usage: DEXSeq_comparison.py [-h] [-e, --events INFER_PAIRWISE_EVENTS_DIR]
 optional arguments:
   -h, --help            show this help message and exit
   --min_jc MINIMUM_JC   Minimum number of total mean junction read suport across
-                        conditions to report an event. (Default: 15)
+                        conditions to report an event: i.e. for conditions A and B,
+                        mean(ijc_A) + mean(ejc_A) + mean(ijc_B) + mean(ejc_B) >= min_jc.
+`                       (Default: 15)
   --min_psi MINIMUM_PSI Minimum max(mean(PSI)) across conditions to report an
                         event. (Default: 0.1)
   --ri_span RI_SPAN_PSI Maximum max(mean(span_PSI)) across conditions to report
