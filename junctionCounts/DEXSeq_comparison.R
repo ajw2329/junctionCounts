@@ -6,7 +6,7 @@ pacman::p_load(DEXSeq, dplyr, tidyr, optparse)
 option_list = list(
   make_option(c("-e", "--events"), action = "store", type="character", default=NULL, 
               help="path to infer_pairwise_events directory", metavar="infer_pairwise_events_dir"),
-  make_option(c("-p", "--psi_files"), action = "store", type="character", default=NULL, 
+  make_option(c("-p", "--psi_dir"), action = "store", type="character", default=NULL, 
               help="path to junctionCounts *psi_outfile.tsv files", metavar="junctionCounts_psi_tsv_dir"),
   make_option(c("-s", "--sample_table"), action = "store", type="character", default=NULL, 
               help="path to sample table: sample,condition,file (.csv)", metavar="sample_table"),
